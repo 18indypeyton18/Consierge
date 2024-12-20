@@ -43,3 +43,35 @@ class GPTLocation: Decodable {
         self.cityCenterLongitude = cityCenterLongitude
     }
 }
+
+
+class GPTSuggestedConciergePlace: Decodable {
+    var placeName: String
+    var address: String
+    var city: City
+    var placeType: String
+    var website: String
+    var category: String
+    var neighborhood: String
+    var suggestedDescr: String
+    var price: Int
+    var latitude: Double
+    var longitude: Double
+    var isLocal: Bool
+    
+        
+    init(placeName: String, address: String, city: City, placeType: String, website: String, category: String, neighborhood: String, suggestedDescr: String, price: Int, latitude: Double, longitude: Double, isLocal: Bool) {
+        self.placeName = placeName
+        self.address = address
+        self.city = city
+        self.placeType = placeType
+        self.website = website
+        self.category = category
+        self.neighborhood = neighborhood
+        self.suggestedDescr = suggestedDescr
+        self.price = price
+        self.latitude = latitude
+        self.longitude = longitude
+        self.isLocal = isLocal
+    }
+}

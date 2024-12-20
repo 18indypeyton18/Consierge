@@ -240,7 +240,26 @@ struct UserFSQsLovedRequest: APIRequest {
     }
 }
 
-struct addTagRequest: APIRequest {
+
+//get a single restaurant from ID
+struct SinglePlaceRequest: APIRequest {
+    typealias Response = [ConciergePlace]
+    typealias IsImage =  Void
+    
+    var placeID: Int?
+    
+    var path: String { "/Consierge/singlePlace.php" }
+    
+    var queryItems: [URLQueryItem]? {
+        if let placeID = placeID {
+            return [URLQueryItem(name: "placeID", value: String(placeID))]
+        } else {
+            return nil
+        }
+    }
+}
+
+struct AddTagRequest: APIRequest {
     typealias Response = Dictionary<String, String>
     typealias IsImage =  Void
     
@@ -553,6 +572,189 @@ struct GetAdditionalPhotosRequest: APIRequest {
     }
 }
 
+//Get all itineraries from the DB
+struct ItineraryRequest: APIRequest {
+    typealias Response = [Itinerary]
+    typealias IsImage =  Void
+    
+    var userID: Int
+    var cityID: Int
+    
+    var path: String { "/Consierge/itineraries.php" }
+
+    var queryItems: [URLQueryItem]? {
+        return [URLQueryItem(name: "userID", value: String(userID)), URLQueryItem(name: "cityID", value: String(cityID))]
+    }
+}
+
+//Create a new Itinerary Line
+struct NewItineraryLineRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var itinerary: ItineraryWithLine
+    
+    var path: String { "/Consierge/newItineraryLine.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(itinerary)
+    }
+}
+//Create a brand new Itinerary and add the first Itinerary Line
+struct BrandNewItineraryRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var itinerary: ItineraryWithLine
+    
+    var path: String { "/Consierge/brandNewItinerary.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(itinerary)
+    }
+}
+
+//Get all of the itineraries created by a specified user
+struct UserItinerariesRequest: APIRequest {
+    typealias Response = [Itinerary]
+    typealias IsImage =  Void
+    
+    var userID: Int
+    
+    var path: String { "/Consierge/userItineraries.php" }
+    
+    var queryItems: [URLQueryItem]? {
+        return [URLQueryItem(name: "userID", value: String(userID))]
+    }
+}
+
+//Get all of the itinerary Lines for a specified Itinerary
+struct UserItineraryLinesRequest: APIRequest {
+    typealias Response = [ItineraryLine]
+    typealias IsImage =  Void
+    
+    var itineraryID: Int
+    
+    var path: String { "/Consierge/userItineraryLines.php" }
+    
+    var queryItems: [URLQueryItem]? {
+        return [URLQueryItem(name: "itineraryID", value: String(itineraryID))]
+    }
+}
+
+//Update the details of an itinerary Line
+struct UpdateItineraryLineRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var itineraryLine: ItineraryLine
+    
+    var path: String { "/Consierge/updateItineraryLine.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(itineraryLine)
+    }
+}
+
+//Update the details of an itinerary Line
+struct DeleteItineraryLineRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var itineraryLine: ItineraryLine
+    
+    var path: String { "/Consierge/deleteItineraryLine.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(itineraryLine)
+    }
+}
+
+//review all restaurants in the DB
+struct GetOrCreateCityRequest: APIRequest {
+    typealias Response = City
+    typealias IsImage =  Void
+    
+    var city: City
+    
+    var path: String { "/Consierge/getOrCreateCity.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(city)
+    }
+}
+
+//review all restaurants in the DB
+struct GetOrCreatePlaceTypeRequest: APIRequest {
+    typealias Response = PlaceType
+    typealias IsImage =  Void
+    
+    var placeType: PlaceType
+    
+    var path: String { "/Consierge/getOrCreatePlaceType.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(placeType)
+    }
+}
+
+
+//review all restaurants in the DB
+struct GetOrCreateGenreRequest: APIRequest {
+    typealias Response = Genre
+    typealias IsImage =  Void
+    
+    var genre: Genre
+    
+    var path: String { "/Consierge/getOrCreateGenre.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(genre)
+    }
+}
+
+
+//review all restaurants in the DB
+struct GetOrCreateNeighborhoodRequest: APIRequest {
+    typealias Response = Neighborhood
+    typealias IsImage =  Void
+    
+    var neighborhood: Neighborhood
+    
+    var path: String { "/Consierge/getOrCreateNeighborhood.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(neighborhood)
+    }
+}
+
+
+//Create a new Itinerary Line
+struct NewPlaceRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var place: ConciergePlace
+    
+    var path: String { "/Consierge/newPlace.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(place)
+    }
+}
+
+
+// MARK: Image Requests
+
 //Upload an image to the server
 struct NewImageRequest: APIRequest {
     typealias Response = Dictionary<String, String>
@@ -607,7 +809,101 @@ struct UpdateUserProfPicRequest: APIRequest {
 }
 
 
+// MARK: Admin Requests
 
+//review all cities in the DB
+struct CitiesToReviewRequest: APIRequest {
+    typealias Response = [City]
+    typealias IsImage =  Void
+        
+    var path: String { "/Consierge/citiesToReview.php" }
+}
+
+//review all restaurants in the DB
+struct PlacesToReviewRequest: APIRequest {
+    typealias Response = [ConciergePlace]
+    typealias IsImage =  Void
+    
+    var path: String { "/Consierge/placesToReview.php" }
+}
+
+//Approve a new city
+struct ApproveCityRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var city: City
+    
+    var path: String { "/Consierge/approveCity.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(city)
+    }
+}
+
+//Approve a new restaurant
+struct ApprovePlaceRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var place: ConciergePlace
+    
+    var path: String { "/Consierge/approvePlace.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(place)
+    }
+}
+
+//Approve a new restaurant
+struct ApprovePlaceEditRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var place: ConciergePlace
+    
+    var path: String { "/Consierge/approvePlaceEdit.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(place)
+    }
+}
+
+//return all restaurants in the DB
+struct PlaceEditsToReviewRequest: APIRequest {
+    typealias Response = [ConciergePlace]
+    typealias IsImage =  Void
+    
+    var path: String { "/Consierge/placeEditsToReview.php" }
+}
+
+//Get all specified 'Additional Photo' entries for a specified Place ID
+struct GetAdditionalPhotosToReviewRequest: APIRequest {
+    typealias Response = [AdditionalPhoto]
+    typealias IsImage =  Void
+    
+    var path: String { "/Consierge/additionalPhotosToReview.php" }
+}
+
+struct ApproveAdditionalPhotoRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var additionalPhoto: AdditionalPhoto
+    
+    var path: String { "/Consierge/approveAdditionalPhoto.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(additionalPhoto)
+    }
+}
+
+
+// MARK: FSQ Requests
 
 struct FSQPlaceLLRequest: FSQAPIRequest {
     typealias Response = FSQDecoderParent

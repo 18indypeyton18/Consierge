@@ -854,9 +854,22 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                 }
             }
         }
+        
+        //if AddToItinerary we need to pass the current Place, the cityID, and the type
+        if segue.identifier == "AddToItinerary" {
+            let navController = segue.destination as! UINavigationController
+            let tableController = navController.topViewController as! AddToItineraryTableViewController
+            tableController.place = place
+            tableController.cityID = place.cityID
+            tableController.isFSQPlace = isFSQPlace
+            
+            tableController.type = type
+        }
     }
     
-    
+    @IBAction func unwindToPlaceDetail(segue: UIStoryboardSegue) {
+        print("Hello")
+    }
 
 }
 

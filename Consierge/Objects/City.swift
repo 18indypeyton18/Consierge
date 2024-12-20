@@ -11,7 +11,7 @@ struct City {
     let cityID: Int
     let name: String
     let nickname: String
-    let imageURL: String
+    var imageURL: String
     let latitude: Double
     let longitude: Double
     let n: Double

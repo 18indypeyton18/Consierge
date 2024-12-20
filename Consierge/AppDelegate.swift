@@ -12,6 +12,11 @@ import FBSDKCoreKit
 var userLovedPlaces = [Place]()
 var userFSQLovedPlaces = [FSQPlace]()
 
+import OpenAIKit
+//import GooglePlaces
+public let openAI = OpenAIKit(apiToken: "***REMOVED***")
+let apiToken2: String = "AIzaSyCtsKYOe5RHp72eGTVgNff5TE_CziXs0E4"
+
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
 

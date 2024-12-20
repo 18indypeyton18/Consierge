@@ -49,6 +49,14 @@ class PicGetter {
             imageRequestTask = nil
         }
     }
+    func getConciergeImageURLOnly(path: String) {
+        imageRequestTask = Task {
+            if let img = try? await ImageRequest(path: path).send() {
+                delegate?.updatePic(image: img)
+            }
+            imageRequestTask = nil
+        }
+    }
     
     func returnConciergeImage(place: ConciergePlace, i: Int) {
         imageRequestTask = Task {

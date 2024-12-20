@@ -48,6 +48,28 @@ final class ConciergePlace: Codable, Place {
     var version: Int = 1
     var status: String?
     var placeTypeID: Int?
+    
+    init(id: Int, name: String, descr: String?, genre: String, neighborhood: String, isLocal: Bool, cityID: City, communityVotes: Int, imageURL: String, website: String, address: String, price: Int, latitude: Double, longitude: Double, fsqID: String?, specialCategory: String?, version: Int, status: String?, placeTypeID: Int?) {
+        self.id = id
+        self.name = name
+        self.descr = descr
+        self.genre = genre
+        self.neighborhood = neighborhood
+        self.isLocal = isLocal
+        self.cityID = cityID
+        self.communityVotes = communityVotes
+        self.imageURL = imageURL
+        self.website = website
+        self.address = address
+        self.price = price
+        self.latitude = latitude
+        self.longitude = longitude
+        self.fsqID = fsqID
+        self.specialCategory = specialCategory
+        self.version = version
+        self.status = status
+        self.placeTypeID = placeTypeID
+    }
 }
 
 extension ConciergePlace: CustomStringConvertible {

@@ -17,10 +17,11 @@ class PickItineraryTableViewController: UITableViewController {
     var selectedItinerary: Itinerary?
     var type: String?
     var city: City?
+    var placeImageURL: String?
     
     struct Model {
         var itineraries = [Itinerary]()
-        var userID: Int? = UserDefaults.standard.integer(forKey: "currentUserID")
+        var userID: Int? = currentUser.id
 
     }
     
@@ -116,7 +117,7 @@ class PickItineraryTableViewController: UITableViewController {
             self.navigationController?.popViewController(animated: true)
         } else {
             //Otherwise create a new Itinerary object
-            let itinerary = Itinerary(ID: 0, userID: model.userID ?? 0, status: "active", createdDate: Date.now.ISO8601Format(), closedDate: nil, name: "New", cityID: nil)
+            let itinerary = Itinerary(ID: 0, userID: currentUser.id, status: "active", createdDate: Date.now.ISO8601Format(), closedDate: nil, name: "New", cityID: nil, coverImageURL: placeImageURL)
             selectedItinerary = itinerary
             delegate?.pickItineraryTableViewController(self, didSelect: itinerary)
             tableView.reloadData()

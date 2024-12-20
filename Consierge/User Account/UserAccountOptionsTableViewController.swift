@@ -34,7 +34,6 @@ class UserAccountOptionsTableViewController: UITableViewController {
         case "Admin":
             return 2
         default:
-            print("1 SECTION!!!!!!!!")
             return 1
         }
     }

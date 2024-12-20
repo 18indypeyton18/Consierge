@@ -129,7 +129,7 @@ extension APIRequest where IsImage == Bool {
 extension APIRequest where Response == Dictionary<String, String> {
     func send() async throws -> Dictionary<String, String> {
         let(data, response) = try await URLSession.shared.data(for: request)
-        //print(response)
+        print(response)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { throw APIRequestError.requestFailed}
         
@@ -137,10 +137,10 @@ extension APIRequest where Response == Dictionary<String, String> {
             let decoder = JSONDecoder()
             let decoded = try decoder.decode(Response.self, from: data)
             
-            //print(decoded)
+            print(decoded)
             return decoded
         } catch {
-            //print(error)
+            print(error)
         }
         
         let decoder = JSONDecoder()

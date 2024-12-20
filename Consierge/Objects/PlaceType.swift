@@ -22,3 +22,4 @@ extension PlaceType: Comparable {
         return lhs.clicked > rhs.clicked
     }
 }
+

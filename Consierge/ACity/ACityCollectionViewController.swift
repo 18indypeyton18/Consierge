@@ -2384,9 +2384,6 @@ extension ACityCollectionViewController: MKLocalSearchCompleterDelegate {
 }
 
 import OpenAIKit
-//import GooglePlaces
-public let openAI = OpenAIKit(apiToken: "***REMOVED***")
-let apiToken2: String = "AIzaSyCtsKYOe5RHp72eGTVgNff5TE_CziXs0E4"
 
 extension ACityCollectionViewController {
     func getSuggestedGPTPrompts() {
@@ -2579,7 +2576,6 @@ extension ACityCollectionViewController {
             Task {
                 if let image = try? await ImageRequest(path: profPicURL).send() {
                     profPicture = image
-                    print("ACITY image got")
                 }
             }
         }
