@@ -11,8 +11,6 @@ import FBSDKCoreKit
 
 //import GooglePlaces
 let apiToken: String = "***REMOVED***"
-let apiToken2: String = "AIzaSyCtsKYOe5RHp72eGTVgNff5TE_CziXs0E4"
-public var googlyKey = "AIzaSyCtsKYOe5RHp72eGTVgNff5TE_CziXs0E4"
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
