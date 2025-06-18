@@ -13,6 +13,7 @@
 		9E0BE7402B3C5CEF00EE252D /* SignUpEmailAndNameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0BE73F2B3C5CEF00EE252D /* SignUpEmailAndNameViewController.swift */; };
 		9E0BE7422B3C5EA900EE252D /* AddressSuggestionCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0BE7412B3C5EA900EE252D /* AddressSuggestionCollectionViewCell.swift */; };
 		9E0BE7442B3C5F5700EE252D /* SignUpLocationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0BE7432B3C5F5700EE252D /* SignUpLocationViewController.swift */; };
+		9E0F09A02D74268F00F309A3 /* UserActivityCollectionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0F099F2D74268F00F309A3 /* UserActivityCollectionViewController.swift */; };
 		9E13590D2B4A0E89009B214B /* SortMethodSelectorCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E13590C2B4A0E88009B214B /* SortMethodSelectorCollectionViewCell.swift */; };
 		9E13590F2B4A0EA1009B214B /* FiltersSelectorCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E13590E2B4A0EA1009B214B /* FiltersSelectorCollectionViewCell.swift */; };
 		9E1359112B4A0EBC009B214B /* AskAISelectorCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E1359102B4A0EBC009B214B /* AskAISelectorCollectionViewCell.swift */; };
@@ -33,6 +34,8 @@
 		9E36A78D2B51C24700153708 /* LovedPlaceCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E36A78C2B51C24700153708 /* LovedPlaceCollectionViewCell.swift */; };
 		9E36A78F2B558D2D00153708 /* PlaceDetailCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E36A78E2B558D2D00153708 /* PlaceDetailCollectionViewCell.swift */; };
 		9E36A7932B55DC8400153708 /* RankedPlaceCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E36A7922B55DC8400153708 /* RankedPlaceCollectionViewCell.swift */; };
+		9E3C41922D6581BF00F8320B /* PlacePreviewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E3C41912D6581BF00F8320B /* PlacePreviewController.swift */; };
+		9E3C41942D65850500F8320B /* PlacePreviewPageController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E3C41932D65850500F8320B /* PlacePreviewPageController.swift */; };
 		9E3F342F2B56D85300A8869F /* SearchFilterCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E3F342E2B56D85300A8869F /* SearchFilterCollectionViewCell.swift */; };
 		9E3F34332B5738E100A8869F /* FiltersACityCollectionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E3F34322B5738E100A8869F /* FiltersACityCollectionViewController.swift */; };
 		9E3F34352B573C2100A8869F /* FilterCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E3F34342B573C2100A8869F /* FilterCollectionViewCell.swift */; };
@@ -44,7 +47,7 @@
 		9E3F34442B5ED4BD00A8869F /* MKExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E3F34432B5ED4BD00A8869F /* MKExtension.swift */; };
 		9E3F34462B5ED52500A8869F /* GoogleAPIRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E3F34452B5ED52500A8869F /* GoogleAPIRequest.swift */; };
 		9E3F34482B5ED61700A8869F /* GooglePlace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E3F34472B5ED61700A8869F /* GooglePlace.swift */; };
-		9E6DF2AE2CB31864007334E5 /* OpenAIKit in Frameworks */ = {isa = PBXBuildFile; productRef = 9E6DF2AD2CB31864007334E5 /* OpenAIKit */; };
+		9E4D6ADF2D623136003B30DC /* ItineraryFunctions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E4D6ADE2D623136003B30DC /* ItineraryFunctions.swift */; };
 		9E6DF2B02CB31FEE007334E5 /* GPTResponseDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E6DF2AF2CB31FEE007334E5 /* GPTResponseDecoder.swift */; };
 		9E6DF2B22CB329EF007334E5 /* GPTPromptCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E6DF2B12CB329EF007334E5 /* GPTPromptCollectionViewCell.swift */; };
 		9E772DB22B6973040021C322 /* PlaceTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E772DB12B6973040021C322 /* PlaceTag.swift */; };
@@ -102,13 +105,21 @@
 		9EC0EA862B3B414A008792DA /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9EC0EA842B3B414A008792DA /* Main.storyboard */; };
 		9EC0EA882B3B414D008792DA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9EC0EA872B3B414D008792DA /* Assets.xcassets */; };
 		9EC0EA8B2B3B414D008792DA /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9EC0EA892B3B414D008792DA /* LaunchScreen.storyboard */; };
+		9ECB311E2DE39CFA00A59161 /* ReviewCommentsCollectionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ECB311D2DE39CFA00A59161 /* ReviewCommentsCollectionViewController.swift */; };
+		9ECB31202DE3A17200A59161 /* ReviewCommentCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ECB311F2DE3A17200A59161 /* ReviewCommentCollectionViewCell.swift */; };
+		9ECB31242DE3A81200A59161 /* ReviewTagsCollectionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ECB31232DE3A81200A59161 /* ReviewTagsCollectionViewController.swift */; };
+		9ECB31282DE7B18500A59161 /* ImageAPIRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ECB31272DE7B18500A59161 /* ImageAPIRequest.swift */; };
 		9ECCA7C32B5F1CA4000C6777 /* PlaceDetailCollectionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ECCA7C22B5F1CA4000C6777 /* PlaceDetailCollectionViewController.swift */; };
 		9ECCA7C82B66E322000C6777 /* PlaceDetailCollectionViewCells.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ECCA7C72B66E322000C6777 /* PlaceDetailCollectionViewCells.swift */; };
 		9ECCA7CA2B66EC74000C6777 /* Comment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ECCA7C92B66EC74000C6777 /* Comment.swift */; };
 		9ECCA7CC2B66FBE2000C6777 /* ImageUpload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ECCA7CB2B66FBE2000C6777 /* ImageUpload.swift */; };
+		9ED02A2F2DF47C3500F371D4 /* LowInventoryAddNewPlaceCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ED02A2E2DF47C3500F371D4 /* LowInventoryAddNewPlaceCollectionViewCell.swift */; };
 		9ED332912D07C53500DB8034 /* NewPlaceStartCollectionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ED332902D07C53500DB8034 /* NewPlaceStartCollectionViewController.swift */; };
 		9ED332932D0A2E9600DB8034 /* NewPlaceCellsCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ED332922D0A2E9600DB8034 /* NewPlaceCellsCollectionViewCell.swift */; };
 		9EE8ABC62B7F06640087B510 /* SearchAutoCompletionCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EE8ABC52B7F06640087B510 /* SearchAutoCompletionCollectionViewCell.swift */; };
+		9EEA88982D74D629008D3CD1 /* ViewLimitedItineraryCollectionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EEA88972D74D629008D3CD1 /* ViewLimitedItineraryCollectionViewController.swift */; };
+		9EEA889A2D751C84008D3CD1 /* CommunityLovesCollectionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EEA88992D751C84008D3CD1 /* CommunityLovesCollectionViewController.swift */; };
+		9EEE42D52D3F490900408258 /* OpenAIAPIRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EEE42D42D3F490900408258 /* OpenAIAPIRequest.swift */; };
 		9EF69B472CB18E9B002D8308 /* MapViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EF69B462CB18E9B002D8308 /* MapViewController.swift */; };
 		D3B4CC35818A22B61D66A529 /* Pods_Consierge.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4529D4D8802ED432F435964C /* Pods_Consierge.framework */; };
 /* End PBXBuildFile section */
@@ -123,6 +134,7 @@
 		9E0BE73F2B3C5CEF00EE252D /* SignUpEmailAndNameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpEmailAndNameViewController.swift; sourceTree = "<group>"; };
 		9E0BE7412B3C5EA900EE252D /* AddressSuggestionCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressSuggestionCollectionViewCell.swift; sourceTree = "<group>"; };
 		9E0BE7432B3C5F5700EE252D /* SignUpLocationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpLocationViewController.swift; sourceTree = "<group>"; };
+		9E0F099F2D74268F00F309A3 /* UserActivityCollectionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserActivityCollectionViewController.swift; sourceTree = "<group>"; };
 		9E13590C2B4A0E88009B214B /* SortMethodSelectorCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortMethodSelectorCollectionViewCell.swift; sourceTree = "<group>"; };
 		9E13590E2B4A0EA1009B214B /* FiltersSelectorCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FiltersSelectorCollectionViewCell.swift; sourceTree = "<group>"; };
 		9E1359102B4A0EBC009B214B /* AskAISelectorCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskAISelectorCollectionViewCell.swift; sourceTree = "<group>"; };
@@ -143,6 +155,8 @@
 		9E36A78C2B51C24700153708 /* LovedPlaceCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LovedPlaceCollectionViewCell.swift; sourceTree = "<group>"; };
 		9E36A78E2B558D2D00153708 /* PlaceDetailCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceDetailCollectionViewCell.swift; sourceTree = "<group>"; };
 		9E36A7922B55DC8400153708 /* RankedPlaceCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankedPlaceCollectionViewCell.swift; sourceTree = "<group>"; };
+		9E3C41912D6581BF00F8320B /* PlacePreviewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacePreviewController.swift; sourceTree = "<group>"; };
+		9E3C41932D65850500F8320B /* PlacePreviewPageController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacePreviewPageController.swift; sourceTree = "<group>"; };
 		9E3F342E2B56D85300A8869F /* SearchFilterCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFilterCollectionViewCell.swift; sourceTree = "<group>"; };
 		9E3F34322B5738E100A8869F /* FiltersACityCollectionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FiltersACityCollectionViewController.swift; sourceTree = "<group>"; };
 		9E3F34342B573C2100A8869F /* FilterCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterCollectionViewCell.swift; sourceTree = "<group>"; };
@@ -154,6 +168,7 @@
 		9E3F34432B5ED4BD00A8869F /* MKExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MKExtension.swift; sourceTree = "<group>"; };
 		9E3F34452B5ED52500A8869F /* GoogleAPIRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAPIRequest.swift; sourceTree = "<group>"; };
 		9E3F34472B5ED61700A8869F /* GooglePlace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GooglePlace.swift; sourceTree = "<group>"; };
+		9E4D6ADE2D623136003B30DC /* ItineraryFunctions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItineraryFunctions.swift; sourceTree = "<group>"; };
 		9E6DF2AF2CB31FEE007334E5 /* GPTResponseDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPTResponseDecoder.swift; sourceTree = "<group>"; };
 		9E6DF2B12CB329EF007334E5 /* GPTPromptCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPTPromptCollectionViewCell.swift; sourceTree = "<group>"; };
 		9E772DB12B6973040021C322 /* PlaceTag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceTag.swift; sourceTree = "<group>"; };
@@ -213,13 +228,21 @@
 		9EC0EA872B3B414D008792DA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		9EC0EA8A2B3B414D008792DA /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		9EC0EA8C2B3B414E008792DA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		9ECB311D2DE39CFA00A59161 /* ReviewCommentsCollectionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewCommentsCollectionViewController.swift; sourceTree = "<group>"; };
+		9ECB311F2DE3A17200A59161 /* ReviewCommentCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewCommentCollectionViewCell.swift; sourceTree = "<group>"; };
+		9ECB31232DE3A81200A59161 /* ReviewTagsCollectionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewTagsCollectionViewController.swift; sourceTree = "<group>"; };
+		9ECB31272DE7B18500A59161 /* ImageAPIRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageAPIRequest.swift; sourceTree = "<group>"; };
 		9ECCA7C22B5F1CA4000C6777 /* PlaceDetailCollectionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceDetailCollectionViewController.swift; sourceTree = "<group>"; };
 		9ECCA7C72B66E322000C6777 /* PlaceDetailCollectionViewCells.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceDetailCollectionViewCells.swift; sourceTree = "<group>"; };
 		9ECCA7C92B66EC74000C6777 /* Comment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Comment.swift; sourceTree = "<group>"; };
 		9ECCA7CB2B66FBE2000C6777 /* ImageUpload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageUpload.swift; sourceTree = "<group>"; };
+		9ED02A2E2DF47C3500F371D4 /* LowInventoryAddNewPlaceCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LowInventoryAddNewPlaceCollectionViewCell.swift; sourceTree = "<group>"; };
 		9ED332902D07C53500DB8034 /* NewPlaceStartCollectionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewPlaceStartCollectionViewController.swift; sourceTree = "<group>"; };
 		9ED332922D0A2E9600DB8034 /* NewPlaceCellsCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewPlaceCellsCollectionViewCell.swift; sourceTree = "<group>"; };
 		9EE8ABC52B7F06640087B510 /* SearchAutoCompletionCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchAutoCompletionCollectionViewCell.swift; sourceTree = "<group>"; };
+		9EEA88972D74D629008D3CD1 /* ViewLimitedItineraryCollectionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewLimitedItineraryCollectionViewController.swift; sourceTree = "<group>"; };
+		9EEA88992D751C84008D3CD1 /* CommunityLovesCollectionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityLovesCollectionViewController.swift; sourceTree = "<group>"; };
+		9EEE42D42D3F490900408258 /* OpenAIAPIRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIAPIRequest.swift; sourceTree = "<group>"; };
 		9EF69B462CB18E9B002D8308 /* MapViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapViewController.swift; sourceTree = "<group>"; };
 		AAE3A7973606CFFB74F93648 /* Pods-Consierge.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Consierge.release.xcconfig"; path = "Target Support Files/Pods-Consierge/Pods-Consierge.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -230,7 +253,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				D3B4CC35818A22B61D66A529 /* Pods_Consierge.framework in Frameworks */,
-				9E6DF2AE2CB31864007334E5 /* OpenAIKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -244,6 +266,15 @@
 				AAE3A7973606CFFB74F93648 /* Pods-Consierge.release.xcconfig */,
 			);
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		9E0F09A22D7426F700F309A3 /* User Activity */ = {
+			isa = PBXGroup;
+			children = (
+				9E0F099F2D74268F00F309A3 /* UserActivityCollectionViewController.swift */,
+				9EEA88992D751C84008D3CD1 /* CommunityLovesCollectionViewController.swift */,
+			);
+			path = "User Activity";
 			sourceTree = "<group>";
 		};
 		9E29B3A22B450258007EB92A /* Objects */ = {
@@ -281,6 +312,16 @@
 			path = AskAI;
 			sourceTree = "<group>";
 		};
+		9E3C41902D65816500F8320B /* MapView */ = {
+			isa = PBXGroup;
+			children = (
+				9EF69B462CB18E9B002D8308 /* MapViewController.swift */,
+				9E3C41912D6581BF00F8320B /* PlacePreviewController.swift */,
+				9E3C41932D65850500F8320B /* PlacePreviewPageController.swift */,
+			);
+			path = MapView;
+			sourceTree = "<group>";
+		};
 		9E3F34402B5B683200A8869F /* Helpers */ = {
 			isa = PBXGroup;
 			children = (
@@ -309,8 +350,10 @@
 			isa = PBXGroup;
 			children = (
 				9E8E1E7D2B3C87F40083FCE1 /* APIRequest.swift */,
+				9ECB31272DE7B18500A59161 /* ImageAPIRequest.swift */,
 				9E3F34382B5B070600A8869F /* FSQAPIRequest.swift */,
 				9E3F34452B5ED52500A8869F /* GoogleAPIRequest.swift */,
+				9EEE42D42D3F490900408258 /* OpenAIAPIRequest.swift */,
 				9E8E1E7F2B3C87FA0083FCE1 /* APIService.swift */,
 			);
 			path = "API Service";
@@ -321,7 +364,6 @@
 			children = (
 				9E0BE73D2B3BDBBA00EE252D /* ACityCollectionViewController.swift */,
 				9E3F34322B5738E100A8869F /* FiltersACityCollectionViewController.swift */,
-				9EF69B462CB18E9B002D8308 /* MapViewController.swift */,
 				9E8E1E8F2B3D17490083FCE1 /* CV Cells */,
 				9E3F34402B5B683200A8869F /* Helpers */,
 			);
@@ -345,6 +387,7 @@
 				9E3F34342B573C2100A8869F /* FilterCollectionViewCell.swift */,
 				9E3F342E2B56D85300A8869F /* SearchFilterCollectionViewCell.swift */,
 				9EE8ABC52B7F06640087B510 /* SearchAutoCompletionCollectionViewCell.swift */,
+				9ED02A2E2DF47C3500F371D4 /* LowInventoryAddNewPlaceCollectionViewCell.swift */,
 			);
 			path = "CV Cells";
 			sourceTree = "<group>";
@@ -359,6 +402,8 @@
 				9EA50AF42D053C5A00872E23 /* ReviewPlacesTableViewController.swift */,
 				9EA50AF52D053C5A00872E23 /* ReviewPlaceEditsTableViewController.swift */,
 				9EA50AF62D053C5A00872E23 /* ReviewAdditionalPhotosCollectionViewController.swift */,
+				9ECB311D2DE39CFA00A59161 /* ReviewCommentsCollectionViewController.swift */,
+				9ECB31232DE3A81200A59161 /* ReviewTagsCollectionViewController.swift */,
 			);
 			path = "User Account";
 			sourceTree = "<group>";
@@ -369,6 +414,7 @@
 				9E8E1EA42B3E370B0083FCE1 /* DiffableDataSource.swift */,
 				9E8E1EAA2B3E6FC10083FCE1 /* UserDefaultFunctions.swift */,
 				9E36A7822B4F4B6A00153708 /* LovePlaceFunctions.swift */,
+				9E4D6ADE2D623136003B30DC /* ItineraryFunctions.swift */,
 				9E36A77E2B4F47E700153708 /* PicGetter.swift */,
 				9E8E1E9A2B3DCE8A0083FCE1 /* CityGetter.swift */,
 				9E36A7882B51950F00153708 /* OpenMapDirections.swift */,
@@ -402,6 +448,7 @@
 				9E91BF262CFB48CB00C3F84C /* AddToItineraryTableViewController.swift */,
 				9E91BF2C2CFB4C3F00C3F84C /* PickItineraryTableViewController.swift */,
 				9EA50AE92D04FF2B00872E23 /* ViewItineraryCollectionViewController.swift */,
+				9EEA88972D74D629008D3CD1 /* ViewLimitedItineraryCollectionViewController.swift */,
 				9E91BF322CFB8B1B00C3F84C /* ItineraryCollectionViewCell.swift */,
 				9EA50AEB2D05012700872E23 /* UpdateItineraryLineTableViewController.swift */,
 				9EA50AF12D0507C800872E23 /* ItineraryLineCollectionViewCell.swift */,
@@ -433,6 +480,7 @@
 				9EA50AFD2D053CB400872E23 /* MassEditCollectionViewCell.swift */,
 				9EA50AFE2D053CB400872E23 /* MassEditTableViewCell.swift */,
 				9EA50AFF2D053CB400872E23 /* PlaceToReviewTableViewCell.swift */,
+				9ECB311F2DE3A17200A59161 /* ReviewCommentCollectionViewCell.swift */,
 			);
 			path = "CV Cells";
 			sourceTree = "<group>";
@@ -467,11 +515,13 @@
 				9EC0EA8C2B3B414E008792DA /* Info.plist */,
 				9E8E1E852B3CC2280083FCE1 /* Sign In Sign Up */,
 				9E8E1E882B3CC28B0083FCE1 /* ACity */,
+				9E3C41902D65816500F8320B /* MapView */,
 				9E8E1E9C2B3DEBB00083FCE1 /* City Selector */,
 				9ECCA7C42B5F1CB0000C6777 /* PlaceDetail */,
 				9E2F44012CB809F300B833C2 /* AskAI */,
 				9ED3328F2D07C02300DB8034 /* New Place */,
 				9E8E1E942B3DC3130083FCE1 /* User Account */,
+				9E0F09A22D7426F700F309A3 /* User Activity */,
 				9E91BF292CFB48F500C3F84C /* Itineraries */,
 				9E8E1EA32B3E215D0083FCE1 /* Shared CV Cells */,
 				9E8E1E992B3DCE5E0083FCE1 /* Helper Funcs */,
@@ -541,7 +591,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1430;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 1640;
 				TargetAttributes = {
 					9EC0EA7A2B3B414A008792DA = {
 						CreatedOnToolsVersion = 14.3.1;
@@ -557,9 +607,6 @@
 				Base,
 			);
 			mainGroup = 9EC0EA722B3B414A008792DA;
-			packageReferences = (
-				9E6DF2AC2CB31864007334E5 /* XCRemoteSwiftPackageReference "OpenAI" */,
-			);
 			productRefGroup = 9EC0EA7C2B3B414A008792DA /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -613,9 +660,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Consierge/Pods-Consierge-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Consierge/Pods-Consierge-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -633,16 +684,19 @@
 				9EAF82122CB40E87000C72F6 /* GPTLoadingCollectionViewCell.swift in Sources */,
 				9EC0EA832B3B414A008792DA /* HomeViewController.swift in Sources */,
 				9E8E1E982B3DCBEA0083FCE1 /* City.swift in Sources */,
+				9EEE42D52D3F490900408258 /* OpenAIAPIRequest.swift in Sources */,
 				9E8E1E7C2B3C75020083FCE1 /* SignUpPasswordViewController.swift in Sources */,
 				9E29B3A42B450370007EB92A /* PlaceType.swift in Sources */,
 				9E3F34422B5ECECF00A8869F /* PlaceSearchCollectionViewCell.swift in Sources */,
 				9E3F34482B5ED61700A8869F /* GooglePlace.swift in Sources */,
+				9ECB311E2DE39CFA00A59161 /* ReviewCommentsCollectionViewController.swift in Sources */,
 				9E36A78F2B558D2D00153708 /* PlaceDetailCollectionViewCell.swift in Sources */,
 				9E3F342F2B56D85300A8869F /* SearchFilterCollectionViewCell.swift in Sources */,
 				9E3F34392B5B070600A8869F /* FSQAPIRequest.swift in Sources */,
 				9E2F44032CB80A1400B833C2 /* AskAICollectionViewController.swift in Sources */,
 				9E3F34462B5ED52500A8869F /* GoogleAPIRequest.swift in Sources */,
 				9EC0EA7F2B3B414A008792DA /* AppDelegate.swift in Sources */,
+				9ECB31202DE3A17200A59161 /* ReviewCommentCollectionViewCell.swift in Sources */,
 				9E36A7792B4E1B9100153708 /* PlaceTypeCollectionViewCell.swift in Sources */,
 				9E0BE7442B3C5F5700EE252D /* SignUpLocationViewController.swift in Sources */,
 				9E8E1E9E2B3E0DE50083FCE1 /* CitySelectorCollectionViewController.swift in Sources */,
@@ -670,18 +724,25 @@
 				9E36A7852B4F4F4B00153708 /* LovePlace.swift in Sources */,
 				9E3F34352B573C2100A8869F /* FilterCollectionViewCell.swift in Sources */,
 				9EA50AF72D053C5A00872E23 /* ReviewPlaceEditsTableViewController.swift in Sources */,
+				9EEA889A2D751C84008D3CD1 /* CommunityLovesCollectionViewController.swift in Sources */,
 				9EA50AF82D053C5A00872E23 /* ReviewPlacesTableViewController.swift in Sources */,
 				9EA50AF92D053C5A00872E23 /* ReviewAdditionalPhotosCollectionViewController.swift in Sources */,
 				9EA50AFA2D053C5A00872E23 /* ReviewCitiesTableViewController.swift in Sources */,
+				9ECB31282DE7B18500A59161 /* ImageAPIRequest.swift in Sources */,
 				9E8E1EA52B3E370B0083FCE1 /* DiffableDataSource.swift in Sources */,
+				9E3C41922D6581BF00F8320B /* PlacePreviewController.swift in Sources */,
 				9E36A7872B518C5800153708 /* PlaceObjects.swift in Sources */,
 				9E84456D2D126F0D0061CFDE /* NewPlaceFinishCollectionViewController.swift in Sources */,
+				9EEA88982D74D629008D3CD1 /* ViewLimitedItineraryCollectionViewController.swift in Sources */,
 				9E8E1E8E2B3D173B0083FCE1 /* SegmentControllerCollectionViewCell.swift in Sources */,
 				9E8E1EAB2B3E6FC10083FCE1 /* UserDefaultFunctions.swift in Sources */,
 				9ED332912D07C53500DB8034 /* NewPlaceStartCollectionViewController.swift in Sources */,
 				9E0B34672C9E5A4A00B90D04 /* ApplePlaceViewController.swift in Sources */,
+				9E4D6ADF2D623136003B30DC /* ItineraryFunctions.swift in Sources */,
 				9E0BE73E2B3BDBBA00EE252D /* ACityCollectionViewController.swift in Sources */,
+				9ED02A2F2DF47C3500F371D4 /* LowInventoryAddNewPlaceCollectionViewCell.swift in Sources */,
 				9EA50AEC2D05012700872E23 /* UpdateItineraryLineTableViewController.swift in Sources */,
+				9E3C41942D65850500F8320B /* PlacePreviewPageController.swift in Sources */,
 				9E3F34372B5B04C400A8869F /* FSQPlace.swift in Sources */,
 				9E0B34692C9F113600B90D04 /* AddTag.swift in Sources */,
 				9EAF82102CB350B9000C72F6 /* GPTPlaceCollectionViewCell.swift in Sources */,
@@ -693,6 +754,7 @@
 				9E91BF312CFB4FDE00C3F84C /* TagFunctions.swift in Sources */,
 				9E93FD542CCFE406002E61EE /* UserAccountSegmentControllerCollectionViewCell.swift in Sources */,
 				9E1359112B4A0EBC009B214B /* AskAISelectorCollectionViewCell.swift in Sources */,
+				9E0F09A02D74268F00F309A3 /* UserActivityCollectionViewController.swift in Sources */,
 				9EA50B002D053CB400872E23 /* MassEditTableViewCell.swift in Sources */,
 				9EA50B012D053CB400872E23 /* PlaceToReviewTableViewCell.swift in Sources */,
 				9EA50B022D053CB400872E23 /* MassEditCollectionViewCell.swift in Sources */,
@@ -727,6 +789,7 @@
 				9E93FD4E2CCD15C3002E61EE /* AskAIInputCollectionViewCell.swift in Sources */,
 				9E8E1E962B3DC3A20083FCE1 /* UserAccountOptionsTableViewController.swift in Sources */,
 				9E8E1E822B3C88D60083FCE1 /* User.swift in Sources */,
+				9ECB31242DE3A81200A59161 /* ReviewTagsCollectionViewController.swift in Sources */,
 				9EF69B472CB18E9B002D8308 /* MapViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -787,8 +850,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 89UGUHWT9E;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -803,7 +868,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -847,8 +912,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 89UGUHWT9E;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -857,7 +924,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
@@ -876,7 +943,6 @@
 				CODE_SIGN_ENTITLEMENTS = Consierge/Consierge.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 89UGUHWT9E;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Consierge/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -907,7 +973,6 @@
 				CODE_SIGN_ENTITLEMENTS = Consierge/Consierge.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 89UGUHWT9E;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Consierge/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -951,25 +1016,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		9E6DF2AC2CB31864007334E5 /* XCRemoteSwiftPackageReference "OpenAI" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/FuturraGroup/OpenAI.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.9.3;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		9E6DF2AD2CB31864007334E5 /* OpenAIKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9E6DF2AC2CB31864007334E5 /* XCRemoteSwiftPackageReference "OpenAI" */;
-			productName = OpenAIKit;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9EC0EA732B3B414A008792DA /* Project object */;
 }

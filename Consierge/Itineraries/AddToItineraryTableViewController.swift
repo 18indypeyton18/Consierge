@@ -14,16 +14,10 @@ class AddToItineraryTableViewController: UITableViewController, UITextFieldDeleg
     var cityID: City?
     var type: String?
     var isFSQPlace = false
-    var isGooglePlace = false
-    enum UnwindTo {
-        case askAI
-        case uhCity
-        case placeDeets
-        case userAccount
-    }
-    var whereToUnwind: UnwindTo = .placeDeets
     
     var added = false
+    
+    var placeSrc: PlaceSource?
     
     @IBOutlet var placePic: UIImageView!
     @IBOutlet var placeLabel: UILabel!
@@ -94,17 +88,10 @@ class AddToItineraryTableViewController: UITableViewController, UITextFieldDeleg
     }
     
     func updatePlace() {
-        print("isfsq", isFSQPlace)
-        print("isGoogly", isGooglePlace)
-        print("place image url", place?.imageURL ?? "NONE!!!!!!!")
-        switch (isFSQPlace, isGooglePlace) {
-        case (true, _):
+        switch isFSQPlace {
+        case true:
             if let place = place {
                 fetchFSQImage(imageURL: place.imageURL)
-            }
-        case (_, true):
-            if let place = place {
-                fetchGoogleImage(photoReference: place.imageURL)
             }
         default:
             self.imageRequestTask = Task {
@@ -120,35 +107,14 @@ class AddToItineraryTableViewController: UITableViewController, UITextFieldDeleg
     
     func getType() {
         switch place.self {
-        case is GooglePlace:
-            isGooglePlace = true
-            isFSQPlace = false
-            switch type {
-            case "restaurant":
-                type = "googleRestaurant"
-            case "cafe":
-                type = "googleCafe"
-            case "bar":
-                type = "googleBar"
-            default:
-                type = "googleActivity"
-            }
         case is FSQPlace:
             isFSQPlace = true
-            isGooglePlace = false
-            switch type {
-            case "restaurant":
-                type = "fsqRestaurant"
-            case "cafe":
-                type = "fsqCafe"
-            case "bar":
-                type = "fsqBar"
-            default:
-                type = "fsqActivity"
-            }
+            type = "FSQ"
+            placeSrc = .fsq
         default:
             isFSQPlace = false
-            isGooglePlace = false
+            type = "Concierge"
+            placeSrc = .concierge
         }
     }
     
@@ -204,7 +170,7 @@ class AddToItineraryTableViewController: UITableViewController, UITextFieldDeleg
     
     @IBSegueAction func addItinerary(_ coder: NSCoder) -> PickItineraryTableViewController? {
         //segue to PickItinerary with city and type
-        let pickItineraryController = PickItineraryTableViewController(coder: coder, type: type, city: cityID)
+        let pickItineraryController = PickItineraryTableViewController(coder: coder, type: type, city: cityID, placeSrc: placeSrc)
         pickItineraryController?.delegate = self
         pickItineraryController?.selectedItinerary = chosenItinerary
         pickItineraryController?.placeImageURL = place?.imageURL
@@ -243,70 +209,22 @@ class AddToItineraryTableViewController: UITableViewController, UITextFieldDeleg
         //create model to pass to DB
         let newItinerary = ItineraryWithLine(itinerary: chosenItinerary, itineraryLine: itineraryLine)
         
-        Task {
-            //if new Itinerary run BrandNew API
-            //if existing Itinerary run NewLine API
-            print("2")
-            if isNewItinerary {
-                let resultValue = try? await BrandNewItineraryRequest(itinerary: newItinerary).send()
-                if let resultValue = resultValue {
-                    print("3")
-                    if resultValue["status"] == "Success" {
-                        print("4")
-                    } else {
-                        print(resultValue)
-                    }
-                } else {
-                    print("error")
-                }
-            } else {
-                let resultValue = try? await NewItineraryLineRequest(itinerary: newItinerary).send()
-                if let resultValue = resultValue {
-                    print(newItinerary)
-                    if resultValue["status"] == "Success" {
-                        switch whereToUnwind {
-                        case .placeDeets:
-                            performSegue(withIdentifier: "UnwindToPlaceDeets", sender: nil)
-                        case .uhCity:
-                            performSegue(withIdentifier: "UnwindToACity", sender: nil)
-                        case .askAI:
-                            performSegue(withIdentifier: "UnwindToAskAI", sender: nil)
-                        case .userAccount:
-                            performSegue(withIdentifier: "UnwindToUserAccount", sender: nil)
-                        }
-                    } else {
-                        print(resultValue)
-                    }
-                } else {
-                    print("error")
-                }
-            }
-        }
-            
+        let itineraryFunctions = ItineraryFunctions()
+        itineraryFunctions.delegate = self
+        itineraryFunctions.addItinerary(newItinerary: newItinerary, isNewItinerary: isNewItinerary)
     }
     
+    @IBAction func donePressed(_ sender: Any) {
+        doneTapped()
+    }
     
     @IBAction func cancelClicked(_ sender: Any) {
-        switch whereToUnwind {
-        case .placeDeets:
-            performSegue(withIdentifier: "FinishItineraryAdd", sender: nil)
-        case .uhCity:
-            performSegue(withIdentifier: "UnwindToACity", sender: nil)
-        case .askAI:
-            performSegue(withIdentifier: "UnwindToAskAI", sender: nil)
-        case .userAccount:
-            performSegue(withIdentifier: "UnwindToUserAccount", sender: nil)
-        }
+        dismiss(animated: true, completion: nil)
     }
     
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         textField.resignFirstResponder()
         return true
-    }
-    
-    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        guard ["UnwindToPlaceDeets", "UnwindToACity", "UnwindToAskAI", "UnwindToUserAccount"].contains(segue.identifier) else { return }
-        doneTapped()
     }
 }
 
@@ -374,31 +292,12 @@ extension AddToItineraryTableViewController {
         return image
     }
     
-    func fetchGoogleImage(photoReference: String)  {
-        imageRequestTask = Task {
-            if let image  = try? await GooglePlacePhotoRequest(photo_reference: photoReference).send() {
-                self.placePic.image = image
-            } else {
-                self.placePic.image = nil
-            }
+}
+
+extension AddToItineraryTableViewController: ItineraryFunctionsDelegate {
+    func updatePage() {
+        DispatchQueue.main.async {
+            self.dismiss(animated: true, completion: nil)
         }
-    }
-    func fetchGoogleImageThrows(url: URL) async throws -> UIImage {
-        enum PhotoInfoError: Error, LocalizedError {
-            case itemNotFound
-            case imageDataMissing
-        }
-        
-        let (data, response) = try await URLSession.shared.data(from: url)
-        
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw PhotoInfoError.imageDataMissing
-        }
-        
-        guard let image = UIImage(data: data) else {
-            throw PhotoInfoError.imageDataMissing
-        }
-        
-        return image
     }
 }

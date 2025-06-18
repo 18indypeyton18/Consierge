@@ -23,6 +23,8 @@ class UserAccountLovedPlaceCollectionViewCell: UICollectionViewCell {
     let lovePlaceFunctions = LovePlaceFunctions()
     let picGetter = PicGetter()
     
+    var fetchedPics = [String:UIImage?]()
+    
     override func awakeFromNib() {
         //setup long press gesture recognizer - currently contains 1 context menu item (<3 restaurant)
         let lpgr : UILongPressGestureRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress))
@@ -32,6 +34,12 @@ class UserAccountLovedPlaceCollectionViewCell: UICollectionViewCell {
         picGetter.delegate = self
         self.addInteraction(UIContextMenuInteraction(delegate: self as UIContextMenuInteractionDelegate))
         self.placePic.addGestureRecognizer(lpgr)
+    }
+    
+    override func prepareForReuse() {
+        place = nil
+        placePic.image = UIImage(named: "default.png")
+        super.prepareForReuse()
     }
     
     override func layoutSubviews() {
@@ -46,6 +54,16 @@ class UserAccountLovedPlaceCollectionViewCell: UICollectionViewCell {
     var imageRequestTask: Task<Void,Never>? = nil
     deinit {
         imageRequestTask?.cancel()
+    }
+    
+    func getPlaceID() -> String {
+        guard let place = place else { return "" }
+        switch place is ConciergePlace {
+        case true:
+            return String(place.id)
+        case false:
+            return place.fsqID ?? ""
+        }
     }
 }
 
@@ -75,12 +93,13 @@ extension UserAccountLovedPlaceCollectionViewCell: UIContextMenuInteractionDeleg
                 
                 var placeTypeName = "Place"
                 if let place = place as? ConciergePlace {
-                    placeTypeName = allPlaceTypes[place.placeTypeID ?? 0]?.name ?? "Place"
+                    placeTypeName = allPlaceTypes[place.placeTypeID ?? 0]?.singularName ?? "Place"
                 }
                 
                 let placeLoved = userLovedPlaces.contains { thisPlace in
                     "\(thisPlace.name)\(thisPlace.id)\(thisPlace.fsqID ?? "")" == "\(place.name)\(place.id)\(place.fsqID ?? "")"
                 }
+                
                 if !placeLoved {
                     loveAction =
                     UIAction(title: NSLocalizedString("Love \(placeTypeName)", comment: ""),
@@ -94,8 +113,13 @@ extension UserAccountLovedPlaceCollectionViewCell: UIContextMenuInteractionDeleg
                     }
                 } else {
                     loveAction = UIAction(title: NSLocalizedString("Unlove \(placeTypeName)", comment: ""), image: UIImage(systemName: "heart.fill")) { action in
-                        self.lovePlaceFunctions.lovePlace(place: self.place, placeSource: .concierge)
-                        self.delegate?.placeLoved(place: place)
+                        if let place = place as? ConciergePlace {
+                            self.lovePlaceFunctions.lovePlace(place: self.place, placeSource: .concierge)
+                            self.delegate?.placeLoved(place: place)
+                        } else if let place = place as? FSQPlace {
+                            self.lovePlaceFunctions.loveFSQPlace(place: place, placeSource: .fsq, placeTypeID: self.placeTypeID ?? 0, cityID: self.cityID ?? 0)
+                            self.delegate?.placeLoved(place: place)
+                        }
                     }
                 }
                 
@@ -122,16 +146,18 @@ extension UserAccountLovedPlaceCollectionViewCell: UIContextMenuInteractionDeleg
 }
 
 extension UserAccountLovedPlaceCollectionViewCell: PicGetterDelegate {
-    func updatePics(images: [UIImage]) {}
-    
-    func updatePics(image: UIImage, i: Int?) {}
-    
-    func updatePic(image: UIImage) {
+    func updatePic(image: UIImage?, placeID: Int?) {
+        
+        let placeIDStr = String(placeID ?? place?.id ?? 0)
+        fetchedPics[placeIDStr] = image
+        
         DispatchQueue.main.async {
+            self.activityIndicator.hidesWhenStopped = true
+            self.activityIndicator.stopAnimating()
+            
+            guard placeID == nil || placeID == self.place?.id else { return }
                                     
-            self.placePic.layer.cornerRadius = 8.0
-            self.placePic.layer.borderWidth = 1.0
-            self.placePic.layer.borderColor = UIColor.systemGray5.cgColor
+            self.placePic.layer.cornerRadius = 10.0
             self.placePic.layer.masksToBounds = true
             
             self.placePic.image = image
@@ -142,7 +168,7 @@ extension UserAccountLovedPlaceCollectionViewCell: PicGetterDelegate {
             // Create shadow for the entire cell
             self.layer.cornerRadius = 10.0 // Optional: Add corner radius for rounded corners
             self.layer.shadowColor = UIColor.darkGray.cgColor
-            self.layer.shadowOpacity = 0.1
+            self.layer.shadowOpacity = 0.05
             self.layer.shadowOffset = CGSize(width: 0, height: 2)
             self.layer.shadowRadius = 4.0
             self.layer.masksToBounds = false
@@ -150,9 +176,13 @@ extension UserAccountLovedPlaceCollectionViewCell: PicGetterDelegate {
             // Create border around the entire cell
             self.layer.borderWidth = 1.0
             self.layer.borderColor = UIColor.systemGray6.cgColor
-
         }
     }
+    
+    func updatePics(images: [UIImage]) {}
+    
+    func updatePics(image: UIImage, i: Int?) {}
+    
     func returnPic(image: UIImage, i: Int) {
     }
 }
@@ -172,14 +202,49 @@ extension UserAccountLovedPlaceCollectionViewCell {
     //Fetch Image from the server based on imageURL
     
     func fetchImage(imageURL: String) {
-        placePic.image = nil
+        let placeID = getPlaceID()
+        if let img = fetchedPics[placeID] {
+            placePic.image = img
+            return
+        }
         
+        placePic.image = UIImage(named: "default.png")
+        activityIndicator.isHidden = false
+        activityIndicator.startAnimating()        
         if let place = place as? ConciergePlace {
             picGetter.getConciergeImage(place: place)
         } else if let place = place as? FSQPlace {
             picGetter.getFSQImage(imageURL: place.imageURL)
-        } else if let place = place as? GooglePlace {
-            picGetter.getGoogleImage(photo_reference: place.imageURL)
+        }
+    }
+}
+
+extension UserAccountLovedPlaceCollectionViewCell {
+    func fetchUserProfPicImage(profPicURL: String?) {
+        placePic.layer.cornerRadius = 30
+        placePic.clipsToBounds = true
+        
+        guard let profPicURL = profPicURL, profPicURL != "" else {
+            let colors: [UIColor] = [.red, .blue, .green, .orange, .gray, .darkGray]
+            DispatchQueue.main.async {
+                self.placePic.image = UIImage(systemName: "person.circle")
+                self.placePic.tintColor = colors.randomElement()
+            }
+            activityIndicator.hidesWhenStopped = true
+            activityIndicator.stopAnimating()
+            
+            return
+        }
+        
+        imageRequestTask = Task {
+            if let image = try? await ImageRequest(path: profPicURL).send() {
+                DispatchQueue.main.async {
+                    self.placePic.image = image
+                    self.activityIndicator.hidesWhenStopped = true
+                    self.activityIndicator.stopAnimating()
+                }
+            }
+            self.imageRequestTask = nil
         }
     }
 }

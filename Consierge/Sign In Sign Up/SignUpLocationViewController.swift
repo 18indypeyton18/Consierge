@@ -24,6 +24,8 @@ class SignUpLocationViewController: UIViewController, UICollectionViewDataSource
     var locDenied = false
     let locationManager = CLLocationManager()
     
+    var segued = false
+    
     @IBOutlet var addressText: UITextField!
     @IBOutlet var shareLocButton: UIButton!
     @IBOutlet var addressCollectionView: UICollectionView!
@@ -84,7 +86,6 @@ class SignUpLocationViewController: UIViewController, UICollectionViewDataSource
     }
     
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        print("did select")
         //if address -> update the addressText field and set addressSelected to True
         let cell = addressCollectionView.cellForItem(at: indexPath) as! AddressSuggestionCollectionViewCell
         let address = cell.addressLabel.text
@@ -109,12 +110,12 @@ class SignUpLocationViewController: UIViewController, UICollectionViewDataSource
     func createLayout() -> UICollectionViewCompositionalLayout {
         //used for the addressesCollectionView
         
-        let size = NSCollectionLayoutSize(
+        let size = NSCollectionLayoutSize (
             widthDimension: NSCollectionLayoutDimension.fractionalWidth(1),
             heightDimension: NSCollectionLayoutDimension.estimated(33)
         )
         let item = NSCollectionLayoutItem(layoutSize: size)
-        let group = NSCollectionLayoutGroup.horizontal(layoutSize: size, subitem: item, count: 1)
+        let group = NSCollectionLayoutGroup.horizontal(layoutSize: size, subitems: [item])
         
         let section = NSCollectionLayoutSection(group: group)
         section.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: 2, bottom: 2, trailing: 2)
@@ -134,6 +135,7 @@ class SignUpLocationViewController: UIViewController, UICollectionViewDataSource
     }
     
     @IBAction func shareLocation(_ sender: Any) {
+        segued = false
         locationManager.requestWhenInUseAuthorization()
     }
     
@@ -215,11 +217,14 @@ extension SignUpLocationViewController: CLLocationManagerDelegate {
         //method to get the user's current location coordinates
         guard let locValue: CLLocationCoordinate2D = manager.location?.coordinate else { return }
         self.locValue = locValue
-        performSegue(withIdentifier: "segueToPasswordPicker", sender: nil)
+        if !segued {
+            segued = true
+            performSegue(withIdentifier: "segueToPasswordPicker", sender: nil)
+        }
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("location finder error")
+        // print("location finder error")
     }
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {

@@ -6,12 +6,17 @@
 //
 
 import UIKit
+import PhotosUI
 
 private let reuseIdentifier = "Cell"
 
 class CitySelectorCollectionViewController: UICollectionViewController, UISearchResultsUpdating {
     
     var selectedCity: City? = nil
+    
+    var pickerCity: City?
+    
+    var picVC: PHPickerViewController?
     
     //Initiate Data Source using DiffableDataSource - allows dynamic updates with creation of an initial dataSource and Snapshots when updates are needed, see CreateDataSource and UpdateCollectionView methods
     
@@ -21,12 +26,10 @@ class CitySelectorCollectionViewController: UICollectionViewController, UISearch
     enum ViewModel {
         enum Section {
             case main
-            case new
             case refresh
         }
         enum Item: Hashable {
             case city(_ city: City)
-            case new
             case refresh
         }
     }
@@ -53,11 +56,13 @@ class CitySelectorCollectionViewController: UICollectionViewController, UISearch
     var citiesRequestTask: Task<Void, Never>? = nil
     var imageRequestTask: Task<Void,Never>? = nil
     var defaultCitiesRequestTask: Task<Void, Never>? = nil
+    var newImageRequestTask: Task<Void,Never>? = nil
     
     deinit {
         imageRequestTask?.cancel()
         citiesRequestTask?.cancel()
         defaultCitiesRequestTask?.cancel()
+        newImageRequestTask?.cancel()
     }
     
     var headerImages = [UIImage?]()
@@ -115,11 +120,6 @@ class CitySelectorCollectionViewController: UICollectionViewController, UISearch
             sections.append(.main)
         }
         
-        let role = currentUser.role
-        if role != "Noob" {
-            sections.append(.new)
-            itemsBySection[.new] = [.new]
-        }
         model.sections = sections
         
         dataSource.applySnapshotUsing(sectionIDs: sections, itemsBySection: itemsBySection)
@@ -155,10 +155,7 @@ class CitySelectorCollectionViewController: UICollectionViewController, UISearch
                 cell.contentView.layer.shadowOpacity = 0.5
                 
                 cell.city = city
-                
-                return cell
-            case .new:
-                let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "NewCity", for: indexPath) as! NewCityCollectionViewCell
+                cell.delegate = self
                 
                 return cell
             case .refresh:
@@ -183,18 +180,7 @@ class CitySelectorCollectionViewController: UICollectionViewController, UISearch
                 let item = NSCollectionLayoutItem(layoutSize: itemSize)
                 
                 let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(140))
-                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitem: item, count: 1)
-                
-                let section = NSCollectionLayoutSection(group: group)
-                section.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10)
-                
-                return section
-            case .new:
-                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .fractionalHeight(1))
-                let item = NSCollectionLayoutItem(layoutSize: itemSize)
-                
-                let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(80))
-                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitem: item, count: 1)
+                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item])
                 
                 let section = NSCollectionLayoutSection(group: group)
                 section.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10)
@@ -205,7 +191,7 @@ class CitySelectorCollectionViewController: UICollectionViewController, UISearch
                 let item = NSCollectionLayoutItem(layoutSize: itemSize)
                 
                 let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(80))
-                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitem: item, count: 1)
+                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item])
                 
                 let section = NSCollectionLayoutSection(group: group)
                 section.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10)
@@ -247,5 +233,101 @@ class CitySelectorCollectionViewController: UICollectionViewController, UISearch
             model.filteredCities = model.cities
         }
         updateCollectionView()
+    }
+}
+
+extension CitySelectorCollectionViewController: CityCollectionViewCellDelegate {
+    func addPhoto(city: City?) {
+        selectPics(city: city)
+    }
+}
+
+extension CitySelectorCollectionViewController: UIImagePickerControllerDelegate & UINavigationControllerDelegate, PHPickerViewControllerDelegate {
+    
+    func selectPics(city: City?) {
+        guard let city = city else { return }
+        pickerCity = city
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.selectionLimit = 1
+        config.filter = .images
+        
+        picVC = PHPickerViewController(configuration: config)
+        
+        guard let picVC = picVC else { return }
+        picVC.delegate = self
+        
+//        imagePicker.delegate = self
+        
+        present(picVC, animated: true)
+    }
+    
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+
+        // You limited selection to 1, so just grab the first result.
+        guard let provider = results.first?.itemProvider, provider.canLoadObject(ofClass: UIImage.self) else { return }
+
+        provider.loadObject(ofClass: UIImage.self) { [weak self] object, error in
+            guard let self = self else { return }
+
+            if let _ = error {
+                // print("Error loading image:", error)
+                return
+            }
+
+            guard let image = object as? UIImage else {
+                // print("Could not cast object to UIImage")
+                return
+            }
+
+            // Anything that touches UI or relies on the image must happen here,
+            // on the main thread.
+            DispatchQueue.main.async {
+                if let city = self.pickerCity {
+                    self.uploadPic(city: city, img: image)
+                }
+            }
+        }
+    }
+
+    func uploadPic(city: City, img: UIImage) {
+        
+        let params = ["name": "AustinMcL","id": "12345","type":"cities"]
+        
+        let headerImageURL = "/cities/\(city.cityID).jpeg"
+        let fileName = "\(city.cityID).jpeg"
+        
+        //create ImageUpload object with the image, determined path, params, and fileName
+        let imageUpload = ImageUpload(image: img, imageURL: headerImageURL, key: "restaurantPic", params: params, fileName: fileName)
+        
+        guard let imageUpload = imageUpload else { return }
+        
+        newImageRequestTask = Task {
+            let newImage = try? await NewImageRequest(imageUpload: imageUpload).send()
+            if let _ = newImage {
+                // print("image uploaded!")
+                imgUploaded(city: city, headerImageURL: headerImageURL)
+            } else {
+                // print("error with image upload request")
+            }
+            newImageRequestTask = nil
+        }
+    }
+    
+    func imgUploaded(city: City?, headerImageURL: String) {
+        guard let city = city else { return }
+        
+        Task {
+            let cityImgUpdate = CityImgUpdate(cityID: city.cityID, headerImageURL: headerImageURL)
+            let resultValue = try? await UpdateCityImgURL(cityImgUpdate: cityImgUpdate).send()
+            if let resultValue = resultValue, resultValue["message"] == "Success" {
+                // print("image url updated!")
+                DispatchQueue.main.async {
+                    self.updateCollectionView()
+                }
+            } else {
+                // print("ERRRR")
+            }
+        }
     }
 }

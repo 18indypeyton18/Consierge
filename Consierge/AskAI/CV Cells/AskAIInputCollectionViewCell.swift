@@ -3,7 +3,7 @@ import UIKit
 
 protocol AskAIInputCollectionViewCellDelegate: AnyObject {
     func didSubmitPrompt(_ prompt: String)
-    func didChangeText()
+    func didChangeText(isTyping: Bool)
 }
 
 class AskAIInputCollectionViewCell: UICollectionViewCell, UITextViewDelegate {
@@ -13,7 +13,7 @@ class AskAIInputCollectionViewCell: UICollectionViewCell, UITextViewDelegate {
     weak var delegate: AskAIInputCollectionViewCellDelegate?
     
     // Modified UITextView with updated appearance
-    private let textView: UITextView = {
+    let textView: UITextView = {
         let tv = UITextView()
         tv.isScrollEnabled = false
         tv.font = UIFont.systemFont(ofSize: 16)
@@ -30,7 +30,7 @@ class AskAIInputCollectionViewCell: UICollectionViewCell, UITextViewDelegate {
         return tv
     }()
     
-    private let placeholderLabel: UILabel = {
+    var placeholderLabel: UILabel = {
         let label = UILabel()
         label.text = "Ask AI"
         label.font = UIFont.systemFont(ofSize: 16)
@@ -98,7 +98,7 @@ class AskAIInputCollectionViewCell: UICollectionViewCell, UITextViewDelegate {
                 delegate?.didSubmitPrompt(prompt)
                 textView.text = ""
                 placeholderLabel.isHidden = false // Show placeholder
-                delegate?.didChangeText()
+                delegate?.didChangeText(isTyping: false)
                 return false
             }
         }
@@ -108,6 +108,14 @@ class AskAIInputCollectionViewCell: UICollectionViewCell, UITextViewDelegate {
     // Update placeholder visibility on text change
     @objc func textViewDidChange(_ textView: UITextView) {
         placeholderLabel.isHidden = !textView.text.isEmpty
-        delegate?.didChangeText()
+        delegate?.didChangeText(isTyping: true)
+    }
+    
+    func textViewDidBeginEditing(_ textView: UITextView) {
+        delegate?.didChangeText(isTyping: true)
+    }
+    
+    func textViewDidEndEditing(_ textView: UITextView) {
+        delegate?.didChangeText(isTyping: false)
     }
 }

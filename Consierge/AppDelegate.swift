@@ -9,13 +9,10 @@ import UIKit
 import GoogleSignIn
 import FBSDKCoreKit
 
-var userLovedPlaces = [Place]()
-var userFSQLovedPlaces = [FSQPlace]()
-
-import OpenAIKit
 //import GooglePlaces
-public let openAI = OpenAIKit(apiToken: "***REMOVED***")
+let apiToken: String = "***REMOVED***"
 let apiToken2: String = "AIzaSyCtsKYOe5RHp72eGTVgNff5TE_CziXs0E4"
+public var googlyKey = "AIzaSyCtsKYOe5RHp72eGTVgNff5TE_CziXs0E4"
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -34,7 +31,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         if UserDefaults.standard.bool(forKey: "loggedIn"), let userEmail = UserDefaults.standard.string(forKey: "email") {
             UserDefaultFunctions().getLoggedInUser(userEmail: userEmail)
         }
-
         return true
     }
 

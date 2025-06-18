@@ -63,8 +63,6 @@ class UpdateItineraryLineTableViewController: UITableViewController {
         switch place.self {
         case is FSQPlace:
             fetchFSQImage(imageURL: place.imageURL)
-        case is GooglePlace:
-            fetchGoogleImage(photoReference: place.imageURL)
         default:
             //fetch image for the place and set the place.Name in the label
             self.imageRequestTask = Task {
@@ -196,34 +194,6 @@ extension UpdateItineraryLineTableViewController {
     }
     
     func fetchFSQImageThrows(url: URL) async throws -> UIImage {
-        enum PhotoInfoError: Error, LocalizedError {
-            case itemNotFound
-            case imageDataMissing
-        }
-        
-        let (data, response) = try await URLSession.shared.data(from: url)
-        
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw PhotoInfoError.imageDataMissing
-        }
-        
-        guard let image = UIImage(data: data) else {
-            throw PhotoInfoError.imageDataMissing
-        }
-        
-        return image
-    }
-    
-    func fetchGoogleImage(photoReference: String)  {
-        imageRequestTask = Task {
-            if let image  = try? await GooglePlacePhotoRequest(photo_reference: photoReference).send() {
-                self.placePic.image = image
-            } else {
-                self.placePic.image = nil
-            }
-        }
-    }
-    func fetchGoogleImageThrows(url: URL) async throws -> UIImage {
         enum PhotoInfoError: Error, LocalizedError {
             case itemNotFound
             case imageDataMissing

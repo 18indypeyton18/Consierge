@@ -9,7 +9,7 @@ import UIKit
 
 class GPTLoadingCollectionViewCell: UICollectionViewCell {
     @IBOutlet var gptPlacesLoadedLabel: UILabel!
-    @IBOutlet var googlePlacesLoadedLabel: UILabel!
+    @IBOutlet var fsqPlacesLoadedLabel: UILabel!
     
     @IBOutlet var activityIndicator: UIActivityIndicatorView!
 }

@@ -67,17 +67,17 @@ extension APIRequest where Response: Decodable {
     func send() async throws -> Response {
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        //print(response)
+//        print(response)
         
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { throw APIRequestError.itemsNotFound }
                 
         do {
             let decoder = JSONDecoder()
             let decoded = try decoder.decode(Response.self, from: data)
-            //print(decoded)
+//            print(decoded)
             return decoded
         } catch {
-            //print(error)
+//            print(error)
         }
         
         let decoder = JSONDecoder()
@@ -119,7 +119,7 @@ extension APIRequest where IsImage == Bool {
             request.setValue("\(data.count)", forHTTPHeaderField: "Content-Length")
             request.httpBody = data
         }
-        //print(request)
+//        print(request)
         
         return request
     }
@@ -129,7 +129,10 @@ extension APIRequest where IsImage == Bool {
 extension APIRequest where Response == Dictionary<String, String> {
     func send() async throws -> Dictionary<String, String> {
         let(data, response) = try await URLSession.shared.data(for: request)
-        print(response)
+//        print(response)
+//        if let text = String(data: data, encoding: .utf8) {
+//            print("🚨 raw server response:\n\(text)")
+//        }
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { throw APIRequestError.requestFailed}
         
@@ -137,10 +140,10 @@ extension APIRequest where Response == Dictionary<String, String> {
             let decoder = JSONDecoder()
             let decoded = try decoder.decode(Response.self, from: data)
             
-            print(decoded)
+//            print(decoded)
             return decoded
         } catch {
-            print(error)
+//            print(error)
         }
         
         let decoder = JSONDecoder()

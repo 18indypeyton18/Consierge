@@ -19,8 +19,6 @@ class ReviewPlacesTableViewController: UITableViewController {
     @IBOutlet var editBarButtonItem: UIBarButtonItem!
     
     deinit {
-        print("ACity Deinit")
-        
         placesRequestTask?.cancel()
         approvePlaceRequestTask?.cancel()
     }
@@ -191,7 +189,6 @@ class ReviewPlacesTableViewController: UITableViewController {
         
         approvePlaceRequestTask = Task {
             let resultValue = try? await ApprovePlaceRequest(place: place).send()
-            
             DispatchQueue.main.async {
                 var myAlert = UIAlertController(title: resultValue?["status"], message: resultValue?["message"], preferredStyle: UIAlertController.Style.alert)
                 
@@ -229,14 +226,10 @@ class ReviewPlacesTableViewController: UITableViewController {
 extension ReviewPlacesTableViewController: MassEditTableViewCellDelegate {
     func deselectAllRows() {
         for i in 1...4 {
-            print(i)
             let numRows = tableView.numberOfRows(inSection: i)
-            print(numRows)
             if numRows != 0 {
                 for j in 0...(numRows - 1) {
-                    print(j)
                     let iP = IndexPath(row: j, section: i)
-                    print(iP)
                     tableView.deselectRow(at: iP, animated: true)
                 }
             }
@@ -245,14 +238,10 @@ extension ReviewPlacesTableViewController: MassEditTableViewCellDelegate {
     
     func selectAllRows() {
         for i in 1...4 {
-            print(i)
             let numRows = tableView.numberOfRows(inSection: i)
-            print(numRows)
             if numRows != 0 {
                 for j in 0...(numRows - 1) {
-                    print(j)
                     let iP = IndexPath(row: j, section: i)
-                    print(iP)
                     tableView.selectRow(at: iP, animated: true, scrollPosition: .none)
                 }
             }
@@ -263,7 +252,6 @@ extension ReviewPlacesTableViewController: MassEditTableViewCellDelegate {
         let selectedRows: [IndexPath] = tableView.indexPathsForSelectedRows ?? []
         
         if selectedRows == [] {
-            print("0000")
         } else {
             for i in selectedRows {
                 let place = placesToReview[i.row]
@@ -276,7 +264,6 @@ extension ReviewPlacesTableViewController: MassEditTableViewCellDelegate {
         let selectedRows: [IndexPath] = tableView.indexPathsForSelectedRows ?? []
         
         if selectedRows == [] {
-            print("0000")
         } else {
             for i in selectedRows {
                 let place = placesToReview[i.row]

@@ -7,6 +7,7 @@
 let BACKGROUND1 = UIColor(red: 0, green: 1, blue: 0.6, alpha: 0.5)
 let BACKGROUND2 = UIColor(red: 0, green: 0.6, blue: 1, alpha: 0.5)
 let BACKGROUND3 = UIColor(red: 0, green: 0.8, blue: 0.8, alpha: 0.5)
+let BACKGROUND4 = UIColor(red: 0.6, green: 0.2, blue: 0.3, alpha: 0.4)
 import UIKit
 
 private let reuseIdentifier = "Cell"
@@ -24,6 +25,8 @@ class FiltersACityCollectionViewController: UICollectionViewController {
     var selectedTags = [PlaceTag]()
     var selectedTagIndexes = Set<Int>()
     var milesFromUser: Float?
+    var cityID: Int?
+    var placeTypeID: Int?
     let sliderIP = IndexPath(item: 0, section: 6)
     
     override func viewDidLoad() {
@@ -43,6 +46,7 @@ class FiltersACityCollectionViewController: UICollectionViewController {
             return lhs.count > rhs.count
         })
         filteredTags = tags
+        getTagIndexes()
     }
     
     func createLayout() -> UICollectionViewCompositionalLayout {
@@ -77,6 +81,17 @@ class FiltersACityCollectionViewController: UICollectionViewController {
                 section.boundarySupplementaryItems = [footer]
                 
                 return section
+            case 7:
+                let itemSize1 = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(45))
+                let item1 = NSCollectionLayoutItem(layoutSize: itemSize1)
+                
+                let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(45))
+                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item1])
+                
+                let section = NSCollectionLayoutSection(group: group)
+                section.contentInsets = NSDirectionalEdgeInsets(top: 15, leading: 5, bottom: 5, trailing: 5)
+                
+                return section
             default:
                 var itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(150))
                 
@@ -103,7 +118,7 @@ class FiltersACityCollectionViewController: UICollectionViewController {
 
     override func numberOfSections(in collectionView: UICollectionView) -> Int {
         // #warning Incomplete implementation, return the number of sections
-        return 7
+        return 8
     }
 
 
@@ -205,7 +220,11 @@ class FiltersACityCollectionViewController: UICollectionViewController {
             }
             cell.styleCell(background: 3)
             return cell
-            
+        case 7:
+            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "ResetFilters", for: indexPath) as! ResetFiltersCollectionViewCell
+            cell.delegate = self
+            cell.styleCell()
+            return cell
         default:
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "MilesSlider", for: indexPath) as! SliderFilterCollectionViewCell
 
@@ -218,8 +237,9 @@ class FiltersACityCollectionViewController: UICollectionViewController {
                 cell.milesSlider.isHidden = false
                 cell.dropDown.image = UIImage(systemName: "chevron.up")
             }
-            return cell
+            cell.delegate = self
             
+            return cell
         }
     }
     
@@ -262,7 +282,7 @@ class FiltersACityCollectionViewController: UICollectionViewController {
             collectionView.reloadData()
         case 6:
             if milesFromUser == nil {
-                milesFromUser = 33.0
+                milesFromUser = 0.1
             } else {
                 milesFromUser = nil
             }
@@ -272,21 +292,17 @@ class FiltersACityCollectionViewController: UICollectionViewController {
     }
     
     @IBAction func saveFilters(_ sender: Any) {
-        switch (selectedCategory == nil, selectedNeighborhood == nil) {
-        case (true, true): break
-        case (false, true):
-            Task {
-                let resultValue = try? await GenreClickedRequest(genreID: selectedCategory?.ID ?? 0).send()
+        Task {
+            if selectedCategory != nil {
+                let _ = try? await GenreClickedRequest(genreID: selectedCategory?.ID ?? 0).send()
             }
-        case (true, false):
-            Task {
-                let resultValue = try? await NeighborhoodClickedRequest(neighborhoodID: selectedNeighborhood?.ID ?? 0).send()
+            if selectedNeighborhood != nil {
+                let _ = try? await NeighborhoodClickedRequest(neighborhoodID: selectedNeighborhood?.ID ?? 0).send()
             }
-        case (false, false):
-            Task {
-                let resultValue = try? await GenreClickedRequest(genreID: selectedCategory?.ID ?? 0).send()
-                
-                let resultValue2 = try? await NeighborhoodClickedRequest(neighborhoodID: selectedNeighborhood?.ID ?? 0).send()
+            if selectedTags.count > 0 {
+                for selectedTag in selectedTags {
+                    let _ = try? await TagClickedRequest(tagName: selectedTag.tagName).send()
+                }
             }
         }
         
@@ -296,7 +312,6 @@ class FiltersACityCollectionViewController: UICollectionViewController {
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         if let dest = segue.destination as? ACityCollectionViewController {
             guard segue.identifier == "UnwindFromFiltersToACity" else {return}
-            print("selected tags", selectedTags)
             if selectedCategory != nil {
                 if let _ = dest.filters.firstIndex(of: .categories) {
                 } else {
@@ -317,7 +332,6 @@ class FiltersACityCollectionViewController: UICollectionViewController {
                 }
                 dest.model.selectedTags = selectedTags
                 dest.model.selectedTagIndexes = selectedTagIndexes
-                print("SELECTED TAGS not empty")
             } else {
                 if let index = dest.filters.firstIndex(of: .tags) {
                     dest.filters.remove(at: index)
@@ -338,6 +352,19 @@ class FiltersACityCollectionViewController: UICollectionViewController {
                 }
                 dest.model.selectedNeighborhood = nil
             }
+            
+            if milesFromUser != nil {
+                dest.filters.append(.distanceFromUser)
+                dest.model.milesFilter = milesFromUser
+            } else {
+                if let index = dest.filters.firstIndex(of: .distanceFromUser) {
+                    dest.filters.remove(at: index)
+                }
+                dest.model.milesFilter = nil
+            }
+            
+            dest.unwindCityID = cityID
+            dest.unwindPlaceTypeID = placeTypeID
         }
     }
 }
@@ -398,5 +425,34 @@ extension FiltersACityCollectionViewController: FilterLabelCollectionViewCellDel
         case nil:
             break
         }
+    }
+}
+
+extension FiltersACityCollectionViewController {
+    func getTagIndexes() {
+        guard selectedTags.isEmpty == false else { return }
+        guard selectedTagIndexes.isEmpty == true else {return}
+        for (i, tag) in tags.enumerated() {
+            if tag.tagName == selectedTags.first?.tagName {
+                selectedTagIndexes.insert(i)
+            }
+        }
+    }
+}
+
+extension FiltersACityCollectionViewController: SliderFilterCollectionViewCellDelegate {
+    func sliderUpdated(miles: Float) {
+        milesFromUser = miles
+    }
+}
+
+extension FiltersACityCollectionViewController: ResetFiltersCollectionViewCellDelegate {
+    func reset() {
+        selectedNeighborhood = nil
+        selectedTags = []
+        selectedTagIndexes = []
+        selectedCategory = nil
+        milesFromUser = nil
+        collectionView.reloadData()
     }
 }

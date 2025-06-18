@@ -39,3 +39,8 @@ struct BaseCity: Codable {
     let userID: Int
     let cityID: Int
 }
+
+struct CityImgUpdate: Codable {
+    let cityID: Int
+    let headerImageURL: String
+}

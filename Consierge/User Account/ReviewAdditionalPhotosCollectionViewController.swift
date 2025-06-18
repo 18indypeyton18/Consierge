@@ -22,7 +22,6 @@ class ReviewAdditionalPhotosCollectionViewController: UICollectionViewController
 
     
     deinit {
-        print("ACity Deinit")
         additionalPhotosRequestTask?.cancel()
         imageRequestTask?.cancel()
         approveAdditionalPhotosRequestTask?.cancel()
@@ -30,20 +29,17 @@ class ReviewAdditionalPhotosCollectionViewController: UICollectionViewController
         
     override func viewDidLoad() {
         super.viewDidLoad()
-        print("vdl")
         update()
         collectionView.collectionViewLayout = createLayout()
     }
 
     func update() {
-        print("load images")
         self.additionalPhotosRequestTask = Task {
-            if let additionalPhotos = try? await GetAdditionalPhotosRequest().send() {
-                print("Success \(additionalPhotos.count)")
+            if let additionalPhotos = try? await GetAdditionalPhotosToReviewRequest().send() {
                 self.additionalPhotos = additionalPhotos
                 collectionView.reloadData()
             } else {
-                print("Failed")
+                // print("Failed")
             }
         }
     }
@@ -53,11 +49,16 @@ class ReviewAdditionalPhotosCollectionViewController: UICollectionViewController
         additionalPhoto.status = status
         approveAdditionalPhotosRequestTask = Task {
             let resultValue = try? await ApproveAdditionalPhotoRequest(additionalPhoto: additionalPhoto).send()
-            DispatchQueue.main.async {
-                var myAlert = UIAlertController(title: resultValue?["status"], message: resultValue?["message"], preferredStyle: UIAlertController.Style.alert)
-                if let _ = resultValue?["ID"] {
-                    //Display the result to the user
-                    if resultValue?["status"] == "Success" {
+            var myAlert = UIAlertController(title: resultValue?["status"], message: resultValue?["message"], preferredStyle: UIAlertController.Style.alert)
+            if let _ = resultValue?["ID"] {
+                //Display the result to the user
+                if resultValue?["status"] == "Success" {
+                    if additionalPhoto.photoIndex == 1 {
+                        let placeCoverStatus = PlaceStatus(placeId: additionalPhoto.placeID, status: status)
+                        let _ = try? await UpdatePlaceCoverStatus(placeStatus: placeCoverStatus).send()
+                    }
+                    
+                    DispatchQueue.main.async {
                         let okAction = UIAlertAction(title: "Close", style: UIAlertAction.Style.default) { action in
                             //self.uploadIndicator.stopAnimating()
                             self.update()
@@ -65,13 +66,16 @@ class ReviewAdditionalPhotosCollectionViewController: UICollectionViewController
                         myAlert.addAction(okAction)
                         self.present(myAlert, animated: true, completion: nil)
                     }
-                } else if resultValue?["status"] == "Error" {
+                }
+            } else if resultValue?["status"]?.lowercased() == "error" {
+                DispatchQueue.main.async {
                     //Display the failed result to the user and stay on the page
                     let okAction = UIAlertAction(title: "Close", style: UIAlertAction.Style.default)
                     myAlert.addAction(okAction)
                     self.present(myAlert, animated: true, completion: nil)
                 }
-                else {
+            } else {
+                DispatchQueue.main.async {
                     //Display the failed result to the user and stay on the page
                     myAlert = UIAlertController(title: "Error", message: "undefined error", preferredStyle: UIAlertController.Style.alert)
                     let okAction = UIAlertAction(title: "Close", style: UIAlertAction.Style.default)
@@ -135,7 +139,7 @@ class ReviewAdditionalPhotosCollectionViewController: UICollectionViewController
                     item.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 3, bottom: 0, trailing: 3)
                     
                     let groupsize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1.0), heightDimension: .estimated(130.0))
-                    let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupsize, subitem: item, count: 2)
+                    let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupsize, subitems: [item, item])
                     
                     group.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: 2, bottom: 3, trailing: 2)
                     

@@ -1,0 +1,58 @@
+# Xcode
+#
+build/
+DerivedData/
+*.xcworkspace
+!default.xcworkspace
+*.xcuserstate
+*.xcuserdata/
+
+# Swift Package Manager
+#
+.build/
+Packages/
+
+# CocoaPods
+#
+Pods/
+
+# Carthage
+#
+Carthage/Build/
+
+# fastlane
+#
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Xcode archives
+#
+*.xcarchive
+
+# Playgrounds
+#
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift playground auxiliary files
+#
+sources/*.swift
+
+# macOS files
+#
+.DS_Store
+
+# Environment / Secrets
+#
+.env
+.env.*
+creds.swift
+Secrets.swift
+
+# Optional: If you have other config files
+#
+# config/keys.json
+# config/*.plist
+

@@ -16,8 +16,10 @@ class NewPlaceStartCollectionViewController: UICollectionViewController {
     @IBOutlet var nextButton: UIBarButtonItem!
     
     var addressSelected = false
-    var selectedAddress: String?
     var photoAdded = false
+    var placeAlreadyExists = true
+    
+    var selectedAddress: String?
     
     var uploadedPics = [UIImage]()
     
@@ -29,6 +31,8 @@ class NewPlaceStartCollectionViewController: UICollectionViewController {
     let imagePicker = UIImagePickerController()
     var picVC: PHPickerViewController?
     
+    var autoCompleteInProgress = false
+    
     var validatedCity: City?
     var cityID: Int = 0
     var placeTypeID: Int = 0
@@ -37,16 +41,20 @@ class NewPlaceStartCollectionViewController: UICollectionViewController {
     
     var place: ConciergePlace?
     
+    var existingPlace: ConciergePlace?
+    
     
     var cityRequestTask: Task<Void, Never>? = nil
     var placeTypeRequestTask: Task<Void, Never>? = nil
     var neighborhoodRequestTask: Task<Void, Never>? = nil
     var categoryRequestTask: Task<Void, Never>? = nil
+    var placeExistsRequestTask: Task<Void, Never>? = nil
     deinit {
         cityRequestTask?.cancel()
         placeTypeRequestTask?.cancel()
         neighborhoodRequestTask?.cancel()
         categoryRequestTask?.cancel()
+        placeExistsRequestTask?.cancel()
     }
     
     
@@ -59,32 +67,22 @@ class NewPlaceStartCollectionViewController: UICollectionViewController {
         
         imagePicker.delegate = self
         
-        //PHPicker function to allow user to select a number of photos to add to the current place
-        var config = PHPickerConfiguration(photoLibrary: .shared())
-        config.selectionLimit = 5
-        config.filter = .images
-        config.selection = .ordered
-        
-        picVC = PHPickerViewController(configuration: config)
-        
-        guard let picVC = picVC else { return }
-        picVC.delegate = self
-        
-        
         let tap = UITapGestureRecognizer(target: view, action: #selector(UIView.endEditing))
         tap.cancelsTouchesInView = false
         view.addGestureRecognizer(tap)
     }
     
     func shouldSaveEnabled() {
-        nextButton.isEnabled = addressSelected && photoAdded
+        DispatchQueue.main.async {
+            self.nextButton.isEnabled = self.addressSelected && self.photoAdded && self.place != nil && !self.autoCompleteInProgress && !self.placeAlreadyExists
+        }
     }
 
     // MARK: UICollectionViewDataSource
 
     override func numberOfSections(in collectionView: UICollectionView) -> Int {
         // #warning Incomplete implementation, return the number of sections
-        return 6
+        return 8
     }
 
 
@@ -92,13 +90,21 @@ class NewPlaceStartCollectionViewController: UICollectionViewController {
         // #warning Incomplete implementation, return the number of items
         switch section {
         case 2:
-            if searchResults.count > 5 {
-                return 5
-            } else {
-                return searchResults.count
+            switch addressSelected {
+            case true:
+                return 1
+            case false:
+                if searchResults.count > 10 {
+                    return 10
+                } else {
+                    return searchResults.count
+                }
             }
         case 5:
             return uploadedPics.count
+        case 6, 7:
+            if existingPlace != nil { return 1 }
+            else { return 0 }
         default:
             return 1
         }
@@ -109,20 +115,70 @@ class NewPlaceStartCollectionViewController: UICollectionViewController {
         case 0:
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "TextLabel", for: indexPath)
             return cell
+        case 6:
+            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "AlreadyExistsLabel", for: indexPath)
+            return cell
         case 1:
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "SearchPlace", for: indexPath) as! PlaceAddressSearchCollectionViewCell
             cell.delegate = self
+            cell.turnOffAutoCorrect()
+            
             return cell
         case 2:
-            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "AddressSuggestion", for: indexPath) as! AddressSuggestionCollectionViewCell
-            cell.addressLabel.text = "\(searchResults[indexPath.item].title) \(searchResults[indexPath.item].subtitle)"
-            return cell
+            switch addressSelected {
+            case false:
+                let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "AddressSuggestion", for: indexPath) as! AddressSuggestionCollectionViewCell
+                cell.addressLabel.text = "\(searchResults[indexPath.item].title) \(searchResults[indexPath.item].subtitle)"
+                return cell
+            case true:
+                let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "AutoFillStatus", for: indexPath) as! AutoFillStatusCollectionViewCell
+                
+                switch autoCompleteInProgress {
+                case true:
+                    cell.autoCompleteLabel.text = "Autocompleting place details"
+                    cell.autoCompleteLabel.isHidden = false
+                    cell.autoCompleteLabel.textColor = .black
+                    cell.activityIndicator.isHidden = false
+                    cell.activityIndicator.startAnimating()
+                case false:
+                    if place == nil {
+                        cell.autoCompleteLabel.isHidden = true
+                    } else {
+                        cell.autoCompleteLabel.isHidden = false
+                        cell.autoCompleteLabel.text = "Autocomplete successful"
+                        cell.autoCompleteLabel.textColor = .systemGreen
+                    }
+                    cell.activityIndicator.isHidden = true
+                    cell.activityIndicator.stopAnimating()
+                }
+                return cell
+            }
         case 3:
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "Separator", for: indexPath)
             return cell
         case 4:
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "ChoosePhotos", for: indexPath) as! ChoosePhotosCollectionViewCell
             cell.delegate = self
+            return cell
+        case 7:
+            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PlaceBox", for: indexPath) as! PlaceBoxCollectionViewCell
+            //Place object stored in each instance of ViewModel.Item and can be used to configure the cell
+            if let existingPlace = existingPlace {
+                cell.place = existingPlace
+                cell.placeTypeID = existingPlace.placeTypeID
+                cell.cityID = existingPlace.placeTypeID
+                
+                cell.imageRequestTask?.cancel()
+                cell.imageRequestTask = nil
+                cell.placePic.image = nil
+                cell.fetchImage(imageURL: existingPlace.imageURL)
+                
+                cell.activityIndicator.isHidden = false
+                cell.activityIndicator.startAnimating()
+                
+                cell.placeNameLabel.text = existingPlace.name
+            }
+            
             return cell
         default:
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "UploadedPic", for: indexPath) as! UploadedPicCollectionViewCell
@@ -140,8 +196,8 @@ class NewPlaceStartCollectionViewController: UICollectionViewController {
     func createLayout() -> UICollectionViewCompositionalLayout {
         let layout = UICollectionViewCompositionalLayout {  (sectionIndex, layoutEnvironment) -> NSCollectionLayoutSection? in
             
-            switch sectionIndex {
-            case 5:
+            switch (sectionIndex, self.addressSelected) {
+            case (5, _):
                 let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.50), heightDimension: .fractionalHeight(1))
                 let item = NSCollectionLayoutItem(layoutSize: itemSize)
                 item.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 5, bottom: 0, trailing: 5)
@@ -154,24 +210,36 @@ class NewPlaceStartCollectionViewController: UICollectionViewController {
                 section.orthogonalScrollingBehavior = .continuous
                 
                 return section
-            case 2:
+            case (2, false):
                 let size = NSCollectionLayoutSize(
                     widthDimension: NSCollectionLayoutDimension.fractionalWidth(1),
                     heightDimension: NSCollectionLayoutDimension.estimated(33)
                 )
                 let item = NSCollectionLayoutItem(layoutSize: size)
-                let group = NSCollectionLayoutGroup.horizontal(layoutSize: size, subitem: item, count: 1)
+                let group = NSCollectionLayoutGroup.horizontal(layoutSize: size, subitems: [item])
 
                 let section = NSCollectionLayoutSection(group: group)
                 section.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10)
                 section.interGroupSpacing = 10
+                return section
+            case (7, _):
+                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .fractionalWidth(1))
+                let item = NSCollectionLayoutItem(layoutSize: itemSize)
+                
+                let groupSize = NSCollectionLayoutSize(widthDimension: .absolute(150), heightDimension: .absolute(150))
+                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item])
+                group.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 5, bottom: 0, trailing: 8)
+                
+                let section = NSCollectionLayoutSection(group: group)
+                section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+                
                 return section
             default:
                 let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .fractionalHeight(1))
                 let item = NSCollectionLayoutItem(layoutSize: itemSize)
                 
                 var hgt = 33.0
-                if sectionIndex == 0 {
+                if sectionIndex == 0 || sectionIndex == 6 {
                     hgt = 90
                 } else if sectionIndex == 3 {
                     hgt = 10.75
@@ -180,7 +248,7 @@ class NewPlaceStartCollectionViewController: UICollectionViewController {
                 }
                 
                 let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(hgt))
-                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitem: item, count: 1)
+                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item])
                 let section = NSCollectionLayoutSection(group: group)
                 section.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10)
                 
@@ -199,6 +267,8 @@ class NewPlaceStartCollectionViewController: UICollectionViewController {
             aiAutofillPlaceDetails()
             
             addressSelected = true
+            autoCompleteInProgress = true
+            placeExists(placeName: searchResults[indexPath.item].title, address: searchResults[indexPath.item].subtitle)
             shouldSaveEnabled()
             
             guard let cell = collectionView.cellForItem(at: addressIndexPath) as? PlaceAddressSearchCollectionViewCell, let selectedAddress = selectedAddress else {return}
@@ -218,6 +288,37 @@ class NewPlaceStartCollectionViewController: UICollectionViewController {
         
         return NewPlaceFinishCollectionViewController(coder: coder, place: place, uploadedPics: uploadedPics)
     }
+    
+    @IBAction func unwindToStartCollectionViewController(_ segue: UIStoryboardSegue) {
+        place = nil
+        addressSelected = false
+        existingPlace = nil
+        placeAlreadyExists = true
+        selectedAddress = nil
+        photoAdded = false
+        autoCompleteInProgress = false
+        uploadedPics = []
+        searchResults = []
+        if let cell = collectionView.cellForItem(at: addressIndexPath) as? PlaceAddressSearchCollectionViewCell {
+            cell.cityAddressText.text = ""
+        }
+        
+        shouldSaveEnabled()
+        collectionView.reloadData()
+    }
+    
+    @IBSegueAction func placeSelected(_ coder: NSCoder, sender: UICollectionViewCell?) -> PlaceDetailCollectionViewController? {
+        guard let existingPlace = existingPlace, let cell = sender as? PlaceBoxCollectionViewCell, let img = cell.placePic.image else { return nil }
+        
+        return PlaceDetailCollectionViewController(coder: coder, place: existingPlace, sectionsPlaces: [existingPlace], placePic: img, placeTypeID: existingPlace.placeTypeID, cityID: existingPlace.cityID.cityID)
+    }
+    
+    override func shouldPerformSegue(withIdentifier identifier: String, sender: Any?) -> Bool {
+        if let cell = sender as? PlaceBoxCollectionViewCell {
+            if cell.placePic.image == nil { return false }
+        }
+        return true
+    }
 }
 
 
@@ -231,39 +332,64 @@ extension NewPlaceStartCollectionViewController: UIImagePickerControllerDelegate
     }
     
     func selectPics() {
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.selectionLimit = 5
+        config.filter = .images
+        config.selection = .ordered
+        
+        picVC = PHPickerViewController(configuration: config)
+        
         guard let picVC = picVC else { return }
+        picVC.delegate = self
+        
         present(picVC, animated: true)
     }
     
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-        //PHPIcker delegate method called once the user finishes selecting the images
-        picker.dismiss(animated: true, completion:  nil)
-        
-        for result in results {
+        picker.dismiss(animated: true, completion: nil)
+
+        // Temporary array to store newly picked images in order
+        var newImagesInOrder = Array<UIImage?>(repeating: nil, count: results.count)
+        let dispatchGroup = DispatchGroup()
+
+        for (index, result) in results.enumerated() {
+            dispatchGroup.enter()
             result.itemProvider.loadObject(ofClass: UIImage.self) { object, error in
-                guard let image = object as? UIImage, error == nil else {return}
-                self.photoAdded = true
-                DispatchQueue.main.async {
-                    self.uploadedPics.append(image)
-                    self.shouldSaveEnabled()
-                    self.collectionView.reloadSections([5])
-                }
+                defer { dispatchGroup.leave() }
+
+                guard let image = object as? UIImage, error == nil else { return }
+
+                newImagesInOrder[index] = image
             }
         }
+
+        dispatchGroup.notify(queue: .main) {
+            let newImages = newImagesInOrder.compactMap { $0 }
+            self.uploadedPics.append(contentsOf: newImages)
+
+            self.photoAdded = !self.uploadedPics.isEmpty
+            self.shouldSaveEnabled()
+            self.collectionView.reloadSections([5])
+        }
     }
+
 }
 
 extension NewPlaceStartCollectionViewController: MKLocalSearchCompleterDelegate, PlaceAddressSearchCellDelegate {
     func addressUpdated(address: String) {
         addressSelected = false
+        existingPlace = nil
         selectedAddress = nil
+        place = nil
+        autoCompleteInProgress = false
+        shouldSaveEnabled()
         
         if address.count > 1 {
             searchCompleter.queryFragment = address
         } else {
             searchResults = []
-            collectionView.reloadSections([2])
         }
+        collectionView.reloadSections([2])
     }
     
     func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
@@ -277,6 +403,10 @@ extension NewPlaceStartCollectionViewController: MKLocalSearchCompleterDelegate,
     
     func clearAddressText() {
         addressSelected = false
+        place = nil
+        existingPlace = nil
+        placeAlreadyExists = true
+        autoCompleteInProgress = false
         shouldSaveEnabled()
     
         guard let cell = collectionView.cellForItem(at: addressIndexPath) as? PlaceAddressSearchCollectionViewCell else {return}
@@ -284,49 +414,24 @@ extension NewPlaceStartCollectionViewController: MKLocalSearchCompleterDelegate,
         selectedAddress = nil
         
         searchResults = []
-        collectionView.reloadSections([2])
+        collectionView.reloadSections([2, 6, 7])
     }
 }
 
-import OpenAIKit
 extension NewPlaceStartCollectionViewController {
     func aiAutofillPlaceDetails() {
-        guard let selectedAddress = selectedAddress else {return}
+        // print("selectedAddress is null: \(selectedAddress == nil)")
+        guard let selectedAddress = selectedAddress else {
+            clearAddressText()
+            return
+        }
         
         group.enter()
         
-        let gptPrompt = """
-Hello! Please act as an autocompletion agent for an application allowing users to create places. 
+        let systemPrompt = """
+You are an autocompletion agent for an application allowing users to create places.
 
-Based on the below address please provide autocompletion results for the remaining fields.
-\(selectedAddress)
-
-The following fields are required:
-    - place name
-    - place address
-    - place City (a city object with several fields)
-        - cityID (always leave as 0)
-        - city name
-        - city nickname
-        - city image url (always leave as an empty string)
-        - city center latitude 
-        - city center longitude
-        - city northern longitude
-        - city western latitude
-        - city southern longitude
-        - city eastern latitude
-        - city status (always "Approved")
-    - place type (like restaurant, cafe, shopping, museum, etc.)
-    - website
-    - category (like cuisine for a restaurant place type, or category of cafe for a cafe place type)
-    - neighborhood
-    - suggested description (a description of this place for someone looking for more info and potentially visiting)
-    - price (1-4) (data type is Integer)
-    - latitude (data type is Double)
-    - longitude (data type is Double)
-    - isLocal (whether the place is a chain [False] or a local spot [True]) (data type is Boolean).
-
-Provide the response in a JSON format with the exact field names provided below. Don't provide any supporting text, only the JSON response.
+Provide the response in a JSON format. Don't provide any supporting text, only the JSON response. This includes markdown like ``` ``` or json. Only include the valid JSON. The response should start with the character "{" and end with the character "}". See the required format below.
         {
             "placeName": "Place Name Value", 
             "address": "123 Address st City, ST 10000", 
@@ -352,28 +457,65 @@ Provide the response in a JSON format with the exact field names provided below.
             "price": 2,
             "latitude": 37.3230,
             "longitude": −122.0321823,  
-            "isLocal": true
+            "isLocal": true,
+            "phoneNumber": "+1-303-202-2020",
+            "menuURL": https://website.com/menu"
         }
 """
         
+        let gptPrompt = """
+Hello! Please act as an autocompletion agent for an application allowing users to create places. 
+
+Based on the below address please provide autocompletion results for the remaining fields.
+\(selectedAddress)
+
+The following fields are required:
+    - place name
+    - place address (in the format "123 Sixth Ave, New York, NY 10014, United States")
+    - place City (a city object with several fields)
+        - cityID (always leave as 0)
+        - city name
+        - city nickname
+        - city image url (always leave as an empty string)
+        - city center latitude 
+        - city center longitude
+        - city northern longitude
+        - city western latitude
+        - city southern longitude
+        - city eastern latitude
+        - city status (always "Approved")
+    - place type (like restaurant, cafe, shopping, museum, etc.)
+    - website
+    - category (like cuisine for a restaurant place type, or category of cafe for a cafe place type)
+    - neighborhood
+    - suggested description (a description of this place for someone looking for more info and potentially visiting)
+    - price (1-4) (data type is Integer)
+    - latitude (data type is Double)
+    - longitude (data type is Double)
+    - isLocal (whether the place is a chain [False] or a local spot [True]) (data type is Boolean).
+    - phoneNumber (String, places phone number in the format +1-303-202-2020, if available, if not leave it out)
+    - menuURL (URL to the places menu online, if available, if available, if not leave it out)
+"""
         
-        let username = currentUser.username ?? "\(currentUser.firstName) \(currentUser.lastName)"
-        let aiMessage = AIMessage(role: .user, content: gptPrompt)
-        openAI.sendChatCompletion(newMessage: aiMessage, previousMessages: [], model: .gptV4(.gpt4), maxTokens: 500, n: 1, user: username, completion: { [weak self] result in
-            switch result {
-            case .success(let aiResult):
-                // Handle the result actions
-                if let text = aiResult.choices.first?.message?.content {
-                    print(text)
-                    self?.createPlace(gptJson: text)
+        let request = ChatGPTCompletionRequest(model: "gpt-4o", systemPrompt: systemPrompt, prompts: [gptPrompt], maxTokens: 500, temperature: 0.5, username: "admin")
+        
+        
+        Task {
+            let response = try await request.send()
+            if let text = response.choices.first?.message.content {
+                if self.autoCompleteInProgress {
+                    self.createPlace(gptJson: text)
+                } else {
+                    // print("auto complete not in progress")
                 }
-            case .failure(let error):
-                //Handle the error
-                let alert = UIAlertController(title: "Error", message: error.localizedDescription, preferredStyle: .alert)
+            } else {
+                // print("GPT Response not received")
+                autoCompleteInProgress = false
+                let alert = UIAlertController(title: "Error", message: "GPT Create Place failed", preferredStyle: .alert)
                 alert.addAction(UIAlertAction(title: "Ok", style: .default))
-                self?.present(alert, animated: true)
+                self.present(alert, animated: true)
             }
-        })
+        }
     }
     
     func createPlace(gptJson: String) {
@@ -381,7 +523,7 @@ Provide the response in a JSON format with the exact field names provided below.
         
         // Attempt to decode the Data object into our Swift structs
         guard let jsonData = gptJson.data(using: .utf8) else {
-            print("Error: Cannot convert string to Data object")
+            autoCompleteInProgress = false
             return
         }
         
@@ -396,33 +538,52 @@ Provide the response in a JSON format with the exact field names provided below.
             // get / create city API
             group.enter()
             var city = gptSuggestedPlace.city
-            city.imageURL = "/Concierge/photos/cityHeaders/\(gptSuggestedPlace.city.nickname).jpg"
+            city.imageURL = "/cities/\(gptSuggestedPlace.city.nickname).jpg"
             getOrCreateCity(city: city)
             
             // get / create place type
             group.enter()
-            let placeType = PlaceType(id: 0, name: gptSuggestedPlace.placeType, iconName: "", clicked: 0, fsqCategoryCode: "")
+            let placeType = PlaceType(id: 0, name: gptSuggestedPlace.placeType, iconName: "", clicked: 0, fsqCategoryCode: "", singularName: gptSuggestedPlace.placeType)
             getOrCreatePlaceType(placeType: placeType)
             
-            group.wait()
-            // get / create category
-            // dependent on place type
-            group.enter()
-            let genre = Genre(ID: 0, name: gptSuggestedPlace.category, placeTypeID: placeTypeID, clicked: 0, fsqCategoryCode: 0)
-            getOrCreateGenre(genre: genre)
-            
-            // get / create neighborhood
-            // dependent on city
-            group.enter()
-            let neighborhood = Neighborhood(ID: 0, cityID: cityID, name: gptSuggestedPlace.neighborhood, clicked: 0)
-            getOrCreateNeighborhood(neighborhood: neighborhood)
-            
-            group.wait()
-            
-            guard let validatedCity = validatedCity else { return }
-            place = ConciergePlace(id: 0, name: gptSuggestedPlace.placeName, descr: gptSuggestedPlace.suggestedDescr, genre: gptSuggestedPlace.category, neighborhood: gptSuggestedPlace.neighborhood, isLocal: gptSuggestedPlace.isLocal, cityID: validatedCity, communityVotes: 0, imageURL: "/Concierge/photos/restaurants/\(gptSuggestedPlace.placeName)\(gptSuggestedPlace.neighborhood).jpeg", website: gptSuggestedPlace.website, address: gptSuggestedPlace.address, price: gptSuggestedPlace.price, latitude: gptSuggestedPlace.latitude, longitude: gptSuggestedPlace.longitude, fsqID: nil, specialCategory: nil, version: 1, status: "Approved", placeTypeID: placeTypeID)
+            group.notify(queue: .main) { [weak self] in
+                guard let self = self else { return }
+                
+                // get / create category
+                // dependent on place type
+                group.enter()
+                let genre = Genre(ID: 0, name: gptSuggestedPlace.category, placeTypeID: placeTypeID, clicked: 0, fsqCategoryCode: 0)
+                getOrCreateGenre(genre: genre)
+                
+                // get / create neighborhood
+                // dependent on city
+                group.enter()
+                let neighborhood = Neighborhood(ID: 0, cityID: cityID, name: gptSuggestedPlace.neighborhood, clicked: 0)
+                getOrCreateNeighborhood(neighborhood: neighborhood)
+                
+                group.notify(queue: .main) { [weak self] in
+                    guard let self = self else { return }
+                    
+                    guard let validatedCity = validatedCity else { return }
+                    let currentUserID = currentUser.id
+                    let currentUserProfPic = currentUser.profPicImageURL
+                    var currentUserUsername = ""
+                    if let uName = currentUser.username, uName != "" {
+                        currentUserUsername = uName
+                    } else {
+                        currentUserUsername = "\(currentUser.firstName) \(currentUser.lastName.first ?? " ")"
+                    }
+                    place = ConciergePlace(id: 0, name: gptSuggestedPlace.placeName, descr: gptSuggestedPlace.suggestedDescr, genre: gptSuggestedPlace.category, neighborhood: gptSuggestedPlace.neighborhood, isLocal: gptSuggestedPlace.isLocal, cityID: validatedCity, communityVotes: 0, imageURL: "/places/.jpeg", website: gptSuggestedPlace.website, address: gptSuggestedPlace.address, price: gptSuggestedPlace.price, latitude: gptSuggestedPlace.latitude, longitude: gptSuggestedPlace.longitude, fsqID: nil, specialCategory: nil, version: 1, status: "Approved", placeTypeID: placeTypeID, authorId: currentUserID, authorName: currentUserUsername, authorProfPic: currentUserProfPic, phoneNumber: gptSuggestedPlace.phoneNumber, menuURL: gptSuggestedPlace.menuURL, coverStatus: nil)
+                    autoCompleteInProgress = false
+                    shouldSaveEnabled()
+                    DispatchQueue.main.async {
+                        self.collectionView.reloadData()
+                    }
+                }
+            }
         } catch {
-            print("decoding error, json decoder failed to decode the object: \(error)")
+            // print("decoding error, json decoder failed to decode the object: \(error)")
+            autoCompleteInProgress = false
             group.leave()
         }
     }
@@ -431,10 +592,10 @@ Provide the response in a JSON format with the exact field names provided below.
         cityRequestTask?.cancel()
         cityRequestTask = Task {
             if let returnCity = try? await GetOrCreateCityRequest(city: city).send() {
-                print("CITY!, ",returnCity)
                 cityID = returnCity.cityID
                 validatedCity = returnCity
             } else {
+                // print("error getting or creating city")
                 cityID = 0
             }
             group.leave()
@@ -446,9 +607,9 @@ Provide the response in a JSON format with the exact field names provided below.
         placeTypeRequestTask?.cancel()
         placeTypeRequestTask = Task {
             if let returnPlaceType = try? await GetOrCreatePlaceTypeRequest(placeType: placeType).send() {
-                print("PLACETYPE!, ", returnPlaceType)
                 placeTypeID = returnPlaceType.id
             } else {
+                // print("error getting or creating place type")
                 placeTypeID = 0
             }
             group.leave()
@@ -459,10 +620,10 @@ Provide the response in a JSON format with the exact field names provided below.
     func getOrCreateGenre(genre: Genre) {
         categoryRequestTask?.cancel()
         categoryRequestTask = Task {
-            if let returnGenre = try? await GetOrCreateGenreRequest(genre: genre).send() {
-                print("GENRE!, ", returnGenre)
+            if let _ = try? await GetOrCreateGenreRequest(genre: genre).send() {
+//                print("GENRE!, ", returnGenre)
             } else {
-                print("err")
+                // print("error retrieving category")
             }
             group.leave()
             categoryRequestTask = nil
@@ -473,10 +634,10 @@ Provide the response in a JSON format with the exact field names provided below.
     func getOrCreateNeighborhood(neighborhood: Neighborhood) {
         neighborhoodRequestTask?.cancel()
         neighborhoodRequestTask = Task {
-            if let returnNeighborhood = try? await GetOrCreateNeighborhoodRequest(neighborhood: neighborhood).send() {
-                print("NEIGHBORHOOD!, ", returnNeighborhood)
+            if let _ = try? await GetOrCreateNeighborhoodRequest(neighborhood: neighborhood).send() {
+//                print("NEIGHBORHOOD!, ", returnNeighborhood)
             } else {
-                print("err")
+                // print("error retrieving neighborhood")
             }
             group.leave()
             neighborhoodRequestTask = nil
@@ -492,5 +653,27 @@ extension NewPlaceStartCollectionViewController: UploadedPhotoCellDelegate {
             shouldSaveEnabled()
         }
         collectionView.reloadSections([5])
+    }
+}
+
+extension NewPlaceStartCollectionViewController {
+    func placeExists(placeName: String, address: String) {
+        placeExistsRequestTask?.cancel()
+        placeExistsRequestTask = Task {
+            if let places = try? await PlaceExistsRequest(placeName: placeName, address: address).send() {
+                if places.count > 0 {
+                    existingPlace = places[0]
+                    placeAlreadyExists = true
+                } else {
+                    placeAlreadyExists = false
+                }
+            } else {
+                placeAlreadyExists = false
+            }
+            DispatchQueue.main.async {
+                self.collectionView.reloadSections([6, 7])
+            }
+            placeExistsRequestTask = nil
+        }
     }
 }

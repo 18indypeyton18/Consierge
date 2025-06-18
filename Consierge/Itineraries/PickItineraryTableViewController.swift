@@ -18,6 +18,7 @@ class PickItineraryTableViewController: UITableViewController {
     var type: String?
     var city: City?
     var placeImageURL: String?
+    var placeSrc: PlaceSource?
     
     struct Model {
         var itineraries = [Itinerary]()
@@ -34,10 +35,11 @@ class PickItineraryTableViewController: UITableViewController {
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    init?(coder: NSCoder, type: String?, city: City?) {
+    init?(coder: NSCoder, type: String?, city: City?, placeSrc: PlaceSource?) {
         //Initialize view with required Type and City
         self.type = type
         self.city = city
+        self.placeSrc = placeSrc
         super.init(coder: coder)
     }
     
@@ -117,7 +119,7 @@ class PickItineraryTableViewController: UITableViewController {
             self.navigationController?.popViewController(animated: true)
         } else {
             //Otherwise create a new Itinerary object
-            let itinerary = Itinerary(ID: 0, userID: currentUser.id, status: "active", createdDate: Date.now.ISO8601Format(), closedDate: nil, name: "New", cityID: nil, coverImageURL: placeImageURL)
+            let itinerary = Itinerary(ID: 0, userID: currentUser.id, status: "active", createdDate: Date.now.ISO8601Format(), closedDate: nil, name: "New", cityID: nil, coverImageURL: placeImageURL, coverImageSrc: placeSrc?.rawValue ?? "Concierge")
             selectedItinerary = itinerary
             delegate?.pickItineraryTableViewController(self, didSelect: itinerary)
             tableView.reloadData()

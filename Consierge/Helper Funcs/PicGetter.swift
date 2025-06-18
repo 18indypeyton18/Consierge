@@ -23,14 +23,25 @@ class PicGetter {
             if let additionalPhotos = try? await GetAdditionalPhotosRequest(restaurantID: place.id, type: type).send() {
                 //If there are Additional Photo results: fetch cover photo then iterate through all additionalPhoto rows and fetch that image
                 if let coverImage = try? await ImageRequest(path: place.imageURL).send() {
+                    if place.coverStatus != "Approved" {
+                        delegate?.updatePic(image: UIImage(named: "default.png"), placeID: nil)
+                        return
+                    }
                     placePics.append(coverImage)
                 }
                 for additionalPhoto in additionalPhotos {
+                    if additionalPhoto.photoIndex == 1 { continue }
+                    if additionalPhoto.photoIndex > 10 { break }
                     if let image = try? await ImageRequest(path: additionalPhoto.path).send() {
                         placePics.append(image)
+                        delegate?.updatePics(images: placePics)
                     }
                 }
             } else {
+                if place.coverStatus != "Approved" {
+                    delegate?.updatePic(image: UIImage(named: "default.png"), placeID: nil)
+                    return
+                }
                 //If there are no Additional Photo results: fetch cover photo only
                 if let coverImage = try? await ImageRequest(path: place.imageURL).send() {
                     placePics.append(coverImage)
@@ -42,9 +53,15 @@ class PicGetter {
     }
     
     func getConciergeImage(place: ConciergePlace) {
+        if place.coverStatus != "Approved" {
+            delegate?.updatePic(image: UIImage(named: "default.png"), placeID: nil)
+            return
+        }
         imageRequestTask = Task {
             if let img = try? await ImageRequest(path: place.imageURL).send() {
-                delegate?.updatePic(image: img)
+                delegate?.updatePic(image: img, placeID: place.id)
+            } else {
+                delegate?.updatePic(image: UIImage(named: "default.png"), placeID: place.id)
             }
             imageRequestTask = nil
         }
@@ -52,14 +69,17 @@ class PicGetter {
     func getConciergeImageURLOnly(path: String) {
         imageRequestTask = Task {
             if let img = try? await ImageRequest(path: path).send() {
-                delegate?.updatePic(image: img)
+                delegate?.updatePic(image: img, placeID: nil)
             }
             imageRequestTask = nil
         }
     }
     
     func returnConciergeImage(place: ConciergePlace, i: Int) {
-        imageRequestTask = Task {
+        if place.coverStatus != "Approved" {
+            return
+        }
+        imageRequestTask = Task { @MainActor in
             if let img = try? await ImageRequest(path: place.imageURL).send() {
                 
                 DispatchQueue.main.async { [weak self] in
@@ -84,7 +104,7 @@ extension PicGetter {
         Task {
             if let url = URL(string: imageURL) {
                 let image = try await fetchFSQImageThrows(url: url)
-                delegate?.updatePic(image: image)
+                delegate?.updatePic(image: image, placeID: nil)
             }
         }
     }
@@ -119,29 +139,19 @@ extension PicGetter {
 }
 
 extension PicGetter {
-    func getGoogleImages(photo_reference: String, i: Int?) {
-        Task {
-            let image = try await GooglePlacePhotoRequest(photo_reference: photo_reference).send()
-            delegate?.updatePics(image: image, i: i)
-        }
-    }
-    func getGoogleImage(photo_reference: String) {
-        Task {
-            let image = try await GooglePlacePhotoRequest(photo_reference: photo_reference).send()
-            delegate?.updatePic(image: image)
-        }
-    }
-    func returnGoogleImage(photo_reference: String, i: Int) {
-        Task {
-            let image = try await GooglePlacePhotoRequest(photo_reference: photo_reference).send()
-            delegate?.returnPic(image: image, i: i)
+    func fetchImage(place: Place) {
+        if let place = place as? ConciergePlace {
+            getConciergeImage(place: place)
+        } else if let place = place as? FSQPlace {
+            getFSQImage(imageURL: place.imageURL)
         }
     }
 }
 
+
 protocol PicGetterDelegate: AnyObject {
     func updatePics(images: [UIImage])
     func updatePics(image: UIImage, i: Int?)
-    func updatePic(image:UIImage)
+    func updatePic(image:UIImage?, placeID: Int?)
     func returnPic(image:UIImage, i: Int)
 }

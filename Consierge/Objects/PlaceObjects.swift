@@ -14,6 +14,6 @@ enum PlaceSectionType {
 enum PlaceSource: String {
     case concierge = "Concierge"
     case fsq = "FSQ"
-    case google = "Google"
+//    case google = "Google"
     case apple = "Apple"
 }

@@ -79,14 +79,62 @@ protocol FilterLabelCollectionViewCellDelegate: AnyObject {
 }
 
 class SliderFilterCollectionViewCell: UICollectionViewCell {
+    @IBOutlet var titleLabel: UILabel!
     @IBOutlet var milesSlider: UISlider!
     @IBOutlet var milesLabel: UILabel!
     @IBOutlet var dropDown: UIImageView!
     
+    weak var delegate: SliderFilterCollectionViewCellDelegate?
+    
     var milesMax: Float = 100.0
+    var milesMin: Float = 0.1 // Minimum value
+
+    override func awakeFromNib() {
+        super.awakeFromNib()
+        
+        milesSlider.minimumValue = 0.0
+        milesSlider.maximumValue = 1.0
+        milesSlider.value = 0.0
+        
+        // Initialize the label with the minimum value
+        updateMilesLabel(for: milesSlider.value)
+    }
     
     @IBAction func milesSlideValueChanged(_ sender: UISlider) {
-        let miles = (sender.value/100) * milesMax
-        milesLabel.text = "\(String(format: "%.2f", miles)) miles"
+        updateMilesLabel(for: sender.value)
     }
+    
+    private func updateMilesLabel(for sliderValue: Float) {
+        // Calculate the miles based on the slider value
+        let miles = milesMin * pow((milesMax / milesMin), sliderValue)
+        milesLabel.text = "\(String(format: "%.2f", miles)) miles"
+        delegate?.sliderUpdated(miles: miles)
+    }
+}
+protocol SliderFilterCollectionViewCellDelegate: AnyObject {
+    func sliderUpdated(miles: Float)
+}
+
+class ResetFiltersCollectionViewCell: UICollectionViewCell {
+    @IBOutlet var resetButton: UIButton!
+    
+    weak var delegate: ResetFiltersCollectionViewCellDelegate?
+    
+    func styleCell() {
+        resetButton.layer.cornerRadius = 8.0 // Optional: Add corner radius for rounded corners
+        resetButton.layer.shadowColor = UIColor.darkGray.cgColor
+        resetButton.layer.shadowOpacity = 0.2
+        resetButton.layer.shadowOffset = CGSize(width: 0, height: 2)
+        resetButton.layer.shadowRadius = 4.0
+        resetButton.layer.masksToBounds = false
+        resetButton.layer.borderWidth = 1.0
+        resetButton.layer.borderColor = UIColor.darkGray.cgColor
+    }
+    
+    @IBAction func resetFilters(_ sender: Any) {
+        delegate?.reset()
+    }
+}
+protocol ResetFiltersCollectionViewCellDelegate: AnyObject {
+    func reset()
 }

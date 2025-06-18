@@ -6,7 +6,7 @@
 //
 
 let defaultCity = City(cityID: -1, name: "Chicago", nickname: "Chitown", imageURL: "", latitude: 41.8781, longitude: -87.6298, n: 41.9781, w: -87.7298, s: 41.7781, e: -87.5298)
-
+var placeRecentlyAdded = -1
 
 import UIKit
 import MapKit
@@ -16,6 +16,8 @@ import SafariServices
 class ACityCollectionViewController: UICollectionViewController {
     
     var city: City = defaultCity
+    var unwindCityID: Int?
+    var unwindPlaceTypeID: Int?
     
     enum Filter {
         case neighborhoods
@@ -36,14 +38,17 @@ class ACityCollectionViewController: UICollectionViewController {
             case filtersAndSort
             case placeBox(headerText: String, sectionType: PlaceSectionType, full: Bool, idx: Int? = nil)
             case placeDetail(headerText: String, sectionType: PlaceSectionType, full: Bool, idx: Int? = nil)
-            case userLovedList(full: Bool)
+            case userLovedList
             case rankedList
             case placeSearchList(src: PlaceSource)
             case searchAutoCompletionResults
             case gptPrompts
             case gptPlace
+            case gptNotFoundPlace
             case gptLoading
             case gptClear
+            case pbFSQ
+            case addAPlace
             
             static func <(lhs: ACityCollectionViewController.ViewModel.Section, rhs: ACityCollectionViewController.ViewModel.Section) -> Bool {
                 switch (lhs, rhs) {
@@ -70,8 +75,11 @@ class ACityCollectionViewController: UICollectionViewController {
             case searchAutoCompletionResult(autoCompletion: MKLocalSearchCompletion)
             case gptPrompt(prompt: String)
             case gptPlace(place: Place)
-            case gptLoading(gptPlaces: Int, googlePlaces: Int)
+            case gptNotFoundPlace(place: GPTPlace)
+            case gptLoading(gptPlaces: Int, fsqPlaces: Int)
             case gptClear
+            case pbFSQ
+            case addAPlace
             
             func hash(into hasher: inout Hasher) {
                 switch self{
@@ -105,10 +113,16 @@ class ACityCollectionViewController: UICollectionViewController {
                     hasher.combine(prompt)
                 case .gptPlace(let place):
                     hasher.combine("\(place.name)\(place.id)\(place.fsqID ?? "")")
-                case .gptLoading(let gptPlaces, let googlePlaces):
-                    hasher.combine("GPTLoading\(gptPlaces)\(googlePlaces)")
+                case .gptNotFoundPlace(let place):
+                    hasher.combine("\(place.name)\(place.address)")
+                case .gptLoading(let gptPlaces, let fsqPlaces):
+                    hasher.combine("GPTLoading\(gptPlaces)\(fsqPlaces)")
                 case .gptClear:
                     hasher.combine("GPTClear")
+                case .pbFSQ:
+                    hasher.combine("pbFSQ")
+                case .addAPlace:
+                    hasher.combine("addAPlace")
                 }
             }
             static func == (lhs: ACityCollectionViewController.ViewModel.Item, rhs: ACityCollectionViewController.ViewModel.Item) -> Bool {
@@ -116,13 +130,13 @@ class ACityCollectionViewController: UICollectionViewController {
                 case (.placeType(let lPlaceType, let lSelected), .placeType(let rPlaceType, let rSelected)):
                     return "\(lPlaceType.name)\(lPlaceType.id)\(lSelected)" == "\(rPlaceType.name)\(rPlaceType.id)\(rSelected)"
                 case (.placeBox(let lhs), .placeBox(let rhs)):
-                    return "\(lhs.name)\(lhs.id)" == "\(rhs.name)\(rhs.id)"
+                    return "\(lhs.name)\(lhs.id)\(lhs.fsqID ?? "")" == "\(rhs.name)\(rhs.id)\(rhs.fsqID ?? "")"
                 case (.placeDetail(let lhs), .placeDetail(let rhs)):
-                    return "\(lhs.name)\(lhs.id)" == "\(rhs.name)\(rhs.id)"
+                    return "\(lhs.name)\(lhs.id)\(lhs.fsqID ?? "")" == "\(rhs.name)\(rhs.id)\(rhs.fsqID ?? "")"
                 case (.placeList(let lhs), .placeList(let rhs)):
-                    return "\(lhs.name)\(lhs.id)" == "\(rhs.name)\(rhs.id)"
+                    return "\(lhs.name)\(lhs.id)\(lhs.fsqID ?? "")" == "\(rhs.name)\(rhs.id)\(rhs.fsqID ?? "")"
                 case (.rankedList(let lhs), .rankedList(let rhs)):
-                    return "\(lhs.name)\(lhs.id)" == "\(rhs.name)\(rhs.id)"
+                    return "\(lhs.name)\(lhs.id)\(lhs.fsqID ?? "")" == "\(rhs.name)\(rhs.id)\(rhs.fsqID ?? "")"
                 case (.placeSearchList(let lhs), .placeSearchList(let rhs)):
                     return "\(lhs.name)\(lhs.id)\(lhs.fsqID ?? "")" == "\(rhs.name)\(rhs.id)\(rhs.fsqID ?? "")"
                 case (.placeSearchListApple(let lhs), .placeSearchListApple(let rhs)):
@@ -170,7 +184,7 @@ class ACityCollectionViewController: UICollectionViewController {
         
         //setup sort method as "popular", updated as the user sets the other sort methods. Used by UpdateCollectionView to properly sort.
         enum CurrentMode {
-            case curated, filtered, askAI, query
+            case curated, filtered, askAI, query, seeAll
         }
         var currentMode: CurrentMode = .curated
         
@@ -211,21 +225,23 @@ class ACityCollectionViewController: UICollectionViewController {
         
         let group = DispatchGroup()
         
-        var lovedListFull = false
-        
         var categories: [Genre]?
         var neighborhoods: [Neighborhood]?
         var tags: [PlaceTag]?
+        var milesFilter: Float? = nil
         
         var selectedCategory: Genre?
         var selectedNeighborhood: Neighborhood?
         var selectedTags: [PlaceTag]?
         var selectedTagIndexes = Set<Int>()
         var selectedTagPlaceIDs: [Int]?
+        
+        var itinerarySelectedPlace: Place?
+        var isUserTyping: Bool = false
     }
     struct FSQModel {
         var fsqPlaces = [FSQPlace]()
-        var fsqIDs: [String] = []
+        var fsqIDs: [String?] = []
         var fsqLovedPlaces: [FSQPlace] = []
     }
     struct AppleMapKitModel {
@@ -245,10 +261,7 @@ class ACityCollectionViewController: UICollectionViewController {
         
         var searchRegion: MKCoordinateRegion = MKCoordinateRegion(MKMapRect.world)
     }
-    struct GoogleMapsModel {
-        var googlePlaces: [GooglePlace] = []
-        var googlyIDs: [String] = []
-    }
+    
     struct GPTModel {
         enum AskAIMode {
             case suggestingPrompts
@@ -261,8 +274,12 @@ class ACityCollectionViewController: UICollectionViewController {
         var lastestUserPrompt: String?
         
         var gptPlaces = [GPTPlace]()
-        var gptGooglePlaces = [GooglePlace]()
+        var gptFSQPlaces = [FSQPlace]()
+        var gptNotFoundPlaces = [GPTPlace]()
         
+        var fsqIDs = [String]()
+        
+        var apiRequestToken = UUID()
         
         let colors: [UIColor] = [
                 UIColor(red: 1.0, green: 0.9, blue: 0.9, alpha: 1.0), // light red
@@ -283,7 +300,6 @@ class ACityCollectionViewController: UICollectionViewController {
     var model = Model()
     var fsqModel = FSQModel()
     var appleMapKitModel = AppleMapKitModel()
-    var googleMapsModel = GoogleMapsModel()
     var gptModel = GPTModel()
     
     var placeTypesRequestTask: Task<Void, Never>? = nil
@@ -291,29 +307,33 @@ class ACityCollectionViewController: UICollectionViewController {
     var neighborhoodsRequestTask: Task<Void, Never>? = nil
     var genresRequestTask: Task<Void, Never>? = nil
     var fsqPlacesRequestTask: Task<Void, Never>? = nil
-    var googlePlacesRequestTask: Task<Void,Never>? = nil
     var tagsRequestTask: Task<Void, Never>? = nil
-    var openAIRequestTask: Task<Void, Never>? = nil
     deinit {
         placeTypesRequestTask?.cancel()
         getPlacesRequestTask?.cancel()
         neighborhoodsRequestTask?.cancel()
         genresRequestTask?.cancel()
         fsqPlacesRequestTask?.cancel()
-        googlePlacesRequestTask?.cancel()
         tagsRequestTask?.cancel()
-        openAIRequestTask?.cancel()
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         setupPage()
+        loadPage()
         collectionView.collectionViewLayout = createLayout()
         dataSource = createDataSource()
         collectionView.dataSource = dataSource
     }
     override func viewDidAppear(_ animated: Bool) {
-        updateCollectionView()
+        if placeRecentlyAdded == (city.cityID * (model.selectedPlaceType?.id ?? 0)) {
+            update()
+        } else {
+            placeRecentlyAdded = -1
+        }
+        if placeRecentlyLoved {
+            getFSQLovedPlaces()
+        }
         super.viewDidAppear(animated)
     }
     
@@ -324,11 +344,8 @@ class ACityCollectionViewController: UICollectionViewController {
             getUserLoc()
         }
         getCity()
-        getPlaceTypes()
-        getNeighborhoods()
-        getCategories()
-        getTags()
-        getSuggestedGPTPrompts()
+        getAllFSQLovedPlaces()
+        getSuggestedGPTPromptsForAskAI()
         updateProfPic()
         
         navigationItem.searchController = searchController
@@ -337,14 +354,18 @@ class ACityCollectionViewController: UICollectionViewController {
         searchController.searchResultsUpdater = self
         searchController.searchBar.delegate = self
         
-        model.locationManager.delegate = self
-        model.locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
         
         appleMapKitModel.searchRegion = MKCoordinateRegion(MKMapRect(origin: MKMapPoint(CLLocationCoordinate2D(latitude: city.latitude, longitude: city.longitude)), size: MKMapSize(width: 1000.0, height: 1000.0)))
         appleMapKitModel.searchCompleter.delegate = self
         
+        model.locationManager.delegate = self
+        model.locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+        
+        collectionView.register(SectionBackgroundCollectionReusableView.self, forSupplementaryViewOfKind: UICollectionView.ElementKind.background, withReuseIdentifier: "SectionBackground")
+        collectionView.register(NamedSectionHeaderView.self, forSupplementaryViewOfKind: "SectionHeader", withReuseIdentifier: "HeaderView")
+        
         let role = currentUser.role
-        if role != "Noob" {
+        if role != "Noob" && role != "GuestUser" {
             //tabBarController?.viewControllers?.insert(NewPlaceTab, at: 1)
         } else {
             if tabBarController?.viewControllers?.endIndex == 4 {
@@ -352,14 +373,24 @@ class ACityCollectionViewController: UICollectionViewController {
             }
         }
         
-        collectionView.register(SectionBackgroundCollectionReusableView.self, forSupplementaryViewOfKind: UICollectionView.ElementKind.background, withReuseIdentifier: "SectionBackground")
-        collectionView.register(NamedSectionHeaderView.self, forSupplementaryViewOfKind: "SectionHeader", withReuseIdentifier: "HeaderView")
+        update()
+    }
+    
+    func loadPage() {
+        getPlaceTypes()
+        getNeighborhoods()
+        self.navigationItem.title = city.name
+        
         userLovedPlacesGroup.notify(queue: .main) {
             self.updateCollectionView()
             self.model.group.notify(queue: .main) {
+                self.getCategories()
+                self.getTags()
+                self.getSuggestedGPTPrompts()
                 self.getFSQLovedPlaces()
             }
         }
+        
         update()
     }
     
@@ -386,7 +417,6 @@ class ACityCollectionViewController: UICollectionViewController {
         } else {
             performSegue(withIdentifier: "SelectCity", sender: nil)
         }
-        self.navigationItem.title = city.name
     }
     
     func getPlaceTypes() {
@@ -400,7 +430,7 @@ class ACityCollectionViewController: UICollectionViewController {
                 }
                 updateCollectionView()
             } else {
-                model.placeTypes = [PlaceType(id: 1, name: "Restaurants", iconName: "fork.knife", clicked: 219, fsqCategoryCode: "13068,13236,13099,13303,13199,13276,13272,13352,13377,13040,13030,13383,13095,13289,13302,13338,13064,13334,13001,13137,13141,13332,13054,13052,13345,13148,13134,13026,13294,13027,13039,13049,13057,13388,13030,13145,13165,13135,13191,13314,13177,13144,13055,13058,13342,13381"), PlaceType(id: 2, name: "Cafes", iconName: "cup.and.saucer", clicked: 221, fsqCategoryCode: "13034,17063,13016"), PlaceType(id: 8, name: "Pubs", iconName: "spigot", clicked: 65, fsqCategoryCode: "13018,13006,13010,13015,13022,13023,13389,10045")]
+                model.placeTypes = [PlaceType(id: 1, name: "Restaurants", iconName: "fork.knife", clicked: 219, fsqCategoryCode: "13068,13236,13099,13303,13199,13276,13272,13352,13377,13040,13030,13383,13095,13289,13302,13338,13064,13334,13001,13137,13141,13332,13054,13052,13345,13148,13134,13026,13294,13027,13039,13049,13057,13388,13030,13145,13165,13135,13191,13314,13177,13144,13055,13058,13342,13381", singularName: "Restaurant"), PlaceType(id: 2, name: "Cafes", iconName: "cup.and.saucer", clicked: 221, fsqCategoryCode: "13034,17063,13016", singularName: "Cafe"), PlaceType(id: 8, name: "Pubs", iconName: "spigot", clicked: 65, fsqCategoryCode: "13018,13006,13010,13015,13022,13023,13389,10045", singularName: "Pub")]
                 if model.selectedPlaceType == nil {
                     model.selectedPlaceType = model.placeTypes[0]
                 }
@@ -450,7 +480,7 @@ class ACityCollectionViewController: UICollectionViewController {
         tagsRequestTask?.cancel()
         tagsRequestTask = Task {
             model.tags = []
-            if let tags = try? await CityTagsRequest(cityID: city.cityID).send() {
+            if let tags = try? await CityTagsRequest(cityID: city.cityID, placeTypeID: model.selectedPlaceType?.id).send() {
                 for tag in tags {
                     self.model.tags?.append(tag)
                 }
@@ -492,20 +522,65 @@ class ACityCollectionViewController: UICollectionViewController {
         }
     }
     
-    func getFSQLovedPlaces() {
+    func getAllFSQLovedPlaces() {
+        var lovedFSQPlaces: [LovePlace] = []
+        for (_, lp) in lovedPlaceDict {
+            guard lp.type != "Concierge" else { continue }
+            lovedFSQPlaces.append(lp)
+        }
+        
         fsqPlacesRequestTask = Task {
             for lovedPlace in lovedFSQPlaces {
                 let fsqID = lovedPlace.fsqID
+                if fetchedFSQPlaces[fsqID] != nil {
+                    if let place = fetchedFSQPlaces[fsqID] as? FSQPlace {
+                        fsqModel.fsqLovedPlaces.append(place)
+                    }
+                    continue
+                }
                 var place: Place?
-                if let fsqPlace = try? await getFSQPlaceRequest(fsqID: fsqID).send() {
-                    place = fsqPlace.placeify()
-                    if let place = place as? FSQPlace {
-                        userFSQLovedPlaces.append(place)
+                if lovedPlace.type == "FSQ" {
+                    if let fsqPlace = try? await getFSQPlaceRequest(fsqID: fsqID).send() {
+                        place = fsqPlace.placeify()
+                        if let place = place as? FSQPlace {
+                            userLovedPlaces.append(place)
+                        }
                     }
                 }
-                if lovedPlace.placeTypeID == model.selectedPlaceType?.id && lovedPlace.cityID == city.cityID {
-                    if let place = place as? FSQPlace {
-                        fsqModel.fsqLovedPlaces.append(place)
+            }
+            fsqPlacesRequestTask = nil
+            updateCollectionView()
+            UserDefaultFunctions().sortUserPlaces()
+        }
+    }
+    
+    func getFSQLovedPlaces() {
+        var lovedFSQPlaces: [LovePlace] = []
+        for (_, lp) in lovedPlaceDict {
+            guard lp.type != "Concierge" else { continue }
+            lovedFSQPlaces.append(lp)
+        }
+        
+        fsqModel.fsqLovedPlaces = []
+        
+        fsqPlacesRequestTask = Task {
+            for lovedPlace in lovedFSQPlaces {
+                guard lovedPlace.placeTypeID == model.selectedPlaceType?.id && lovedPlace.cityID == city.cityID else { continue }
+                let fsqID = lovedPlace.fsqID
+                
+                if  fetchedFSQPlaces[fsqID] != nil {
+                    if let place = fetchedFSQPlaces[fsqID] as? FSQPlace, lovedPlace.type == "FSQ" { fsqModel.fsqLovedPlaces.append(place) }
+                    continue
+                }
+                
+                var place: Place?
+                if lovedPlace.type == "FSQ" {
+                    if let fsqPlace = try? await getFSQPlaceRequest(fsqID: fsqID).send() {
+                        place = fsqPlace.placeify()
+                        if let place = place as? FSQPlace {
+                            fsqModel.fsqLovedPlaces.append(place)
+                            fetchedFSQPlaces[fsqID] = place
+                        }
                     }
                 }
             }
@@ -519,32 +594,39 @@ class ACityCollectionViewController: UICollectionViewController {
         model.selectedCategory = nil
         model.selectedNeighborhood = nil
         model.selectedTags = nil
+        model.milesFilter = nil
         model.selectedTagIndexes = Set<Int>()
-        googleMapsModel.googlePlaces = []
-        googleMapsModel.googlyIDs = []
         fsqModel.fsqPlaces = []
         searchController.searchBar.text = ""
         searchController.searchBar.placeholder = "Search"
         searchController.isActive = false
         gptModel.suggestedPrompts = []
         gptModel.gptPlaces = []
-        gptModel.gptGooglePlaces = []
+        gptModel.gptFSQPlaces = []
+        gptModel.gptNotFoundPlaces = []
         gptModel.askAIMode = .suggestingPrompts
     }
     
     func resetAskAIView() {
+        gptModel.apiRequestToken = UUID()
         gptModel.suggestedPrompts = []
         gptModel.gptPlaces = []
-        gptModel.gptGooglePlaces = []
-        openAIRequestTask?.cancel()
-        openAIRequestTask = nil
-        googlePlacesRequestTask?.cancel()
-        googlePlacesRequestTask = nil
+        gptModel.gptFSQPlaces = []
         getSuggestedGPTPrompts()
         gptModel.askAIMode = .suggestingPrompts
     }
     
     func deallocateMem() {
+        
+    }
+    
+    func clearPlaces() {
+        fsqModel.fsqPlaces = []
+        gptModel.suggestedPrompts = []
+        gptModel.gptPlaces = []
+        gptModel.gptFSQPlaces = []
+        gptModel.gptNotFoundPlaces = []
+        gptModel.askAIMode = .suggestingPrompts
         
     }
     
@@ -557,6 +639,7 @@ class ACityCollectionViewController: UICollectionViewController {
             } else {
                 model.places = []
                 model.filteredPlaces = []
+                // print("Places Request Failed")
             }
             DispatchQueue.main.async {
                 UIView.transition(with: self.view, duration: 0.4, options: .showHideTransitionViews, animations: { () -> Void in
@@ -571,6 +654,14 @@ class ACityCollectionViewController: UICollectionViewController {
         if let itemsBySection = createItemsBySection() {
             model.model = itemsBySection
             self.dataSource.applySnapshotUsing(sectionIDs: self.model.sections, itemsBySection: itemsBySection)
+        }
+        if model.viewMode == .list && (model.currentMode == .curated || model.currentMode == .filtered || model.currentMode == .seeAll) {
+            var snapshot = dataSource.snapshot()
+            if snapshot.sectionIdentifiers.contains(.rankedList) {
+                let rankedListItems = snapshot.itemIdentifiers(inSection: .rankedList)
+                snapshot.reloadItems(rankedListItems)
+                dataSource.apply(snapshot, animatingDifferences: true)
+            }
         }
     }
     
@@ -641,6 +732,7 @@ class ACityCollectionViewController: UICollectionViewController {
                     cell.backgroundColor = UIColor.clear
                     cell.selectedIndicator.isHidden = true
                 }
+                cell.delegate = self
                 return cell
             case .askAISelector:
                 let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "AskAISelector", for: indexPath) as! AskAISelectorCollectionViewCell
@@ -664,13 +756,9 @@ class ACityCollectionViewController: UICollectionViewController {
                 //activity indicator stopped once the image is returned
                 cell.imageRequestTask?.cancel()
                 cell.imageRequestTask = nil
-                cell.placePic.image = nil
+                cell.placePic.image = UIImage(named: "default.png")
                 
                 cell.fetchImage(imageURL: place.imageURL)
-                
-                //image task will take time so animate an activity indicator to show activity in progress
-                cell.activityIndicator.isHidden = false
-                cell.activityIndicator.startAnimating()
                 
                 cell.placeNameLabel.text = place.name
                 let (distance, fromWho) = self.distanceFromYou(place: place)
@@ -691,13 +779,11 @@ class ACityCollectionViewController: UICollectionViewController {
                 //activity indicator stopped once the image is returned
                 cell.imageRequestTask?.cancel()
                 cell.imageRequestTask = nil
-                cell.placePic.image = nil
+                cell.placePic.image = UIImage(named: "default.png")
                 
                 cell.fetchImage(imageURL: place.imageURL)
                 
-                //image task will take time so animate an activity indicator to show activity in progress
-                cell.activityIndicator.isHidden = false
-                cell.activityIndicator.startAnimating()
+                cell.getTags()
                 
                 cell.placeNameLabel.text = place.name
                 cell.neiCatLabel.text = "\(place.neighborhood) - \(place.genre)"
@@ -707,12 +793,6 @@ class ACityCollectionViewController: UICollectionViewController {
                     cell.communityLovesLabel.text = "\(place.communityVotes) Community Loves"
                 } else if let place = place as? FSQPlace {
                     cell.communityLovesLabel.text = "Rating - \(place.rating ?? 0) / Popularity - \(place.popularity ?? 0)"
-                } else if let place = place as? GooglePlace {
-                    if let rating = place.rating {
-                        cell.communityLovesLabel.text = "Rating - \(String(format: "%.2f", rating))"
-                    } else {
-                        cell.communityLovesLabel.text = "No Rating"
-                    }
                 }
                 
                 cell.delegate = self
@@ -730,7 +810,7 @@ class ACityCollectionViewController: UICollectionViewController {
                 //activity indicator stopped once the image is returned
                 cell.imageRequestTask?.cancel()
                 cell.imageRequestTask = nil
-                cell.placePic.image = nil
+                cell.placePic.image = UIImage(named: "default.png")
                 cell.descriptionLabel.text = "\(place.genre) - \(place.neighborhood)"
                 
                 cell.fetchImage(imageURL: place.imageURL)
@@ -752,7 +832,7 @@ class ACityCollectionViewController: UICollectionViewController {
                 //activity indicator stopped once the image is returned
                 cell.imageRequestTask?.cancel()
                 cell.imageRequestTask = nil
-                cell.placePic.image = nil
+                cell.placePic.image = UIImage(named: "default.png")
                 
                 cell.fetchImage(imageURL: place.imageURL)
                 
@@ -763,13 +843,8 @@ class ACityCollectionViewController: UICollectionViewController {
                     cell.communityLovesLabel.text = "\(place.communityVotes) Community Loves"
                 } else if let place = place as? FSQPlace {
                     cell.communityLovesLabel.text = "Rating - \(place.rating ?? 0) / Popularity - \(place.popularity ?? 0)"
-                } else if let place = place as? GooglePlace {
-                    if let rating = place.rating {
-                        cell.communityLovesLabel.text = "Rating - \(String(format: "%.2f", rating))"
-                    } else {
-                        cell.communityLovesLabel.text = "No Rating"
-                    }
                 }
+                
                 cell.rankLabel.text = "\(indexPath.item+1)"
                 
                 cell.delegate = self
@@ -787,7 +862,7 @@ class ACityCollectionViewController: UICollectionViewController {
                 //activity indicator stopped once the image is returned
                 cell.imageRequestTask?.cancel()
                 cell.imageRequestTask = nil
-                cell.placePic.image = nil
+                cell.placePic.image = UIImage(named: "default.png")
                 
                 cell.fetchImage(imageURL: place.imageURL)
                 
@@ -822,7 +897,7 @@ class ACityCollectionViewController: UICollectionViewController {
                 cell.prompt = prompt
                 cell.promptLabel.text = prompt
                 
-                let colors: [UIColor] = [
+                let _: [UIColor] = [
                         UIColor(red: 1.0, green: 0.9, blue: 0.9, alpha: 1.0), // light red
                         UIColor(red: 0.9, green: 1.0, blue: 0.9, alpha: 1.0), // light green
                         UIColor(red: 0.9, green: 0.9, blue: 1.0, alpha: 1.0), // light blue
@@ -856,10 +931,6 @@ class ACityCollectionViewController: UICollectionViewController {
                 
                 cell.fetchImage(imageURL: place.imageURL)
                 
-                //image task will take time so animate an activity indicator to show activity in progress
-                cell.activityIndicator.isHidden = false
-                cell.activityIndicator.startAnimating()
-                
                 cell.placeNameLabel.text = place.name
                 cell.neiCatLabel.text = "\(place.neighborhood) - \(place.genre)"
                 let (distance, fromWho) = self.distanceFromYou(place: place)
@@ -868,19 +939,26 @@ class ACityCollectionViewController: UICollectionViewController {
                     cell.communityLovesLabel.text = "\(place.communityVotes) Community Loves"
                 } else if let place = place as? FSQPlace {
                     cell.communityLovesLabel.text = "Rating - \(place.rating ?? 0) / Popularity - \(place.popularity ?? 0)"
-                } else if let place = place as? GooglePlace {
-                    if let rating = place.rating {
-                        cell.communityLovesLabel.text = "Rating - \(String(format: "%.2f", rating))"
-                    } else {
-                        cell.communityLovesLabel.text = "No Rating"
-                    }
                 }
                 
                 cell.delegate = self
                 
                 //return cell for each item
                 return cell
-            case .gptLoading(let gptPlaces, let googlePlaces):
+            case .gptNotFoundPlace(let place):
+                let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "GPTCompletion", for: indexPath) as! SearchAutoCompletionCollectionViewCell
+                //Place object stored in each instance of ViewModel.Item and can be used to configure the cell
+                
+                cell.styleCell()
+                
+                cell.placeNameLabel.text = place.name
+                cell.placeAddressLabel.text = place.address
+                cell.cellType = .place
+                cell.gptPlace = place
+                
+                //return cell for each item
+                return cell
+            case .gptLoading(let gptPlaces, let fsqPlaces):
                 let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "GPTLoading", for: indexPath) as! GPTLoadingCollectionViewCell
                 if !cell.activityIndicator.isAnimating {
                     cell.activityIndicator.startAnimating()
@@ -888,14 +966,23 @@ class ACityCollectionViewController: UICollectionViewController {
                 
                 if gptPlaces == 0 {
                     cell.gptPlacesLoadedLabel.text = self.gptModel.lastestUserPrompt ?? ""
-                    cell.googlePlacesLoadedLabel.text = ""
+                    cell.fsqPlacesLoadedLabel.text = ""
                 } else {
                     cell.gptPlacesLoadedLabel.text = "ChatGPT replied with \(gptPlaces) places"
-                    cell.googlePlacesLoadedLabel.text = "Google Maps Platform replied with \(googlePlaces) places"
+                    cell.fsqPlacesLoadedLabel.text = "Foursquare replied with \(fsqPlaces) places"
                 }
                 return cell
             case .gptClear:
                 let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "GPTClear", for: indexPath) as! GPTClearCollectionViewCell
+                cell.delegate = self
+                
+                return cell
+            case .pbFSQ:
+                let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "poweredByFSQ", for: indexPath)
+                return cell
+            case .addAPlace:
+                let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "AddPlace", for: indexPath) as! LowInventoryAddNewPlaceCollectionViewCell
+                
                 cell.delegate = self
                 
                 return cell
@@ -921,8 +1008,10 @@ class ACityCollectionViewController: UICollectionViewController {
                         switch sectionType {
                         case .neighborhood:
                             header.nameLabel.text = "The best of \(headerText)"
+                            header.neighborhood = headerText
                         default:
                             header.nameLabel.text = headerText
+                            header.genre = headerText
                         }
                         header.delegate = self
                         header.actionButton.isHidden = !full
@@ -933,26 +1022,30 @@ class ACityCollectionViewController: UICollectionViewController {
                         switch sectionType {
                         case .neighborhood:
                             header.nameLabel.text = "The best of \(headerText)"
+                            header.neighborhood = headerText
                         default:
                             header.nameLabel.text = headerText
+                            header.genre = headerText
                         }
                         header.delegate = self
                         header.actionButton.isHidden = !full
-                    case .userLovedList(let full):
+                    case .userLovedList:
                         header.nameLabel.textColor = .darkText
                         header.nameLabel.font = UIFont.preferredFont(forTextStyle: .headline)
                         header.backgroundColor = .white
                         header.nameLabel.text = "That You've Loved ❤️"
                         header.delegate = self
+                        var full = false
+                        if let placeItems = model.model[.userLovedList] {
+                            if placeItems.count > 9 { full = true }
+                        }
                         header.actionButton.isHidden = !full
+                        header.lovedPlaces = true
                     case .placeSearchList(src: .concierge):
                         header.nameLabel.text = "Consierge Results"
                         header.actionButton.isHidden = true
                     case .placeSearchList(src: .fsq):
                         header.nameLabel.text = "Foursquare Results"
-                        header.actionButton.isHidden = true
-                    case .placeSearchList(src: .google):
-                        header.nameLabel.text = "Google Maps Results"
                         header.actionButton.isHidden = true
                     case .placeSearchList(src: .apple):
                         header.nameLabel.text = "Apple Maps Results"
@@ -975,12 +1068,12 @@ class ACityCollectionViewController: UICollectionViewController {
             let section = self.model.sections[sectionIndex]
             switch section {
             case .placeTypes:
-                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.28), heightDimension: .absolute(40))
+                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1.0), heightDimension: .fractionalHeight(1.0))
                 let item = NSCollectionLayoutItem(layoutSize: itemSize)
                 
                 let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.28), heightDimension: .absolute(40))
                 
-                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitem: item, count: 1)
+                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item])
                 
                 let section = NSCollectionLayoutSection(group: group)
                 section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 2, bottom: 10, trailing: 0)
@@ -1019,6 +1112,29 @@ class ACityCollectionViewController: UICollectionViewController {
                 
                 let sectionBackground = NSCollectionLayoutDecorationItem.background( elementKind: UICollectionView.ElementKind.background)
                 section.decorationItems = [sectionBackground]
+                
+                return section
+                
+            case .userLovedList:
+                let (numItems, height) = self.getUserLovedListHeight()
+                var fractionalHeight = 0.5
+                if numItems < 2 { fractionalHeight = 1.0 }
+                
+                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1.0), heightDimension: .fractionalHeight(fractionalHeight))
+                let item = NSCollectionLayoutItem(layoutSize: itemSize)
+                item.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 5, bottom: 0, trailing: 0)
+                
+                let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.55), heightDimension: .absolute(height))
+                let group = NSCollectionLayoutGroup.vertical(layoutSize: groupSize, subitems: [item])
+                
+                let headerSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(24))
+                let sectionHeader = NSCollectionLayoutBoundarySupplementaryItem(layoutSize: headerSize, elementKind: "SectionHeader", alignment: .top)
+                sectionHeader.pinToVisibleBounds = true
+                
+                let section = NSCollectionLayoutSection(group: group)
+                section.orthogonalScrollingBehavior = .continuousGroupLeadingBoundary
+                section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 7, trailing: 0)
+                section.boundarySupplementaryItems = [sectionHeader]
                 
                 return section
             case .placeBox:
@@ -1060,27 +1176,6 @@ class ACityCollectionViewController: UICollectionViewController {
                 sectionHeader.pinToVisibleBounds = true
                 section.boundarySupplementaryItems = [sectionHeader]
 
-                return section
-
-            case .userLovedList:
-                let (numItems, height) = self.getUserLovedListHeight()
-                
-                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(height))
-                let item = NSCollectionLayoutItem(layoutSize: itemSize)
-                item.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 5, bottom: 0, trailing: 0)
-                
-                let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.55), heightDimension: .absolute(height))
-                let group = NSCollectionLayoutGroup.vertical(layoutSize: groupSize, subitem: item, count: numItems)
-                
-                let headerSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(24))
-                let sectionHeader = NSCollectionLayoutBoundarySupplementaryItem(layoutSize: headerSize, elementKind: "SectionHeader", alignment: .top)
-                sectionHeader.pinToVisibleBounds = true
-                
-                let section = NSCollectionLayoutSection(group: group)
-                section.orthogonalScrollingBehavior = .groupPaging
-                section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 7, trailing: 0)
-                section.boundarySupplementaryItems = [sectionHeader]
-                
                 return section
             case .rankedList:
                 let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(75))
@@ -1124,11 +1219,11 @@ class ACityCollectionViewController: UICollectionViewController {
                 
                 return section
             case .gptPrompts:
-                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(60))
+                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(70))
                 let item = NSCollectionLayoutItem(layoutSize: itemSize)
                 item.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 5, bottom: 6, trailing: 5)
                 
-                let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(60))
+                let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(70))
                 let group = NSCollectionLayoutGroup.vertical(layoutSize: groupSize, subitems: [item])
                 
                 let section = NSCollectionLayoutSection(group: group)
@@ -1148,6 +1243,18 @@ class ACityCollectionViewController: UICollectionViewController {
                 let section = NSCollectionLayoutSection(group: group)
                 section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 10, trailing: 0)
 
+                return section
+            case .gptNotFoundPlace:
+                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(60))
+                let item = NSCollectionLayoutItem(layoutSize: itemSize)
+                item.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: 5, bottom: 3, trailing: 5)
+                
+                let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(60))
+                let group = NSCollectionLayoutGroup.vertical(layoutSize: groupSize, subitems: [item])
+                
+                let section = NSCollectionLayoutSection(group: group)
+                section.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 0, bottom: 5, trailing: 0)
+                
                 return section
             case .gptLoading:
                 let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.96), heightDimension: .absolute(150))
@@ -1171,6 +1278,28 @@ class ACityCollectionViewController: UICollectionViewController {
                 section.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0)
                 
                 return section
+            case .pbFSQ:
+                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.96), heightDimension: .absolute(40))
+                let item = NSCollectionLayoutItem(layoutSize: itemSize)
+                
+                let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(40))
+                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item])
+                
+                let section = NSCollectionLayoutSection(group: group)
+                section.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0)
+                
+                return section
+            case .addAPlace:
+                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(125))
+                let item = NSCollectionLayoutItem(layoutSize: itemSize)
+                
+                let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(125))
+                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item])
+                
+                let section = NSCollectionLayoutSection(group: group)
+                section.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 20, bottom: 8, trailing: 20)
+                
+                return section
             }
         }
         layout.register(SectionBackgroundCollectionReusableView.self, forDecorationViewOfKind: UICollectionView.ElementKind.background)
@@ -1183,11 +1312,13 @@ class ACityCollectionViewController: UICollectionViewController {
             if model.currentMode == .query && model.queryMode == .autoCompletion {
                 guard let cell = collectionView.cellForItem(at: indexPath) as? SearchAutoCompletionCollectionViewCell else { return }
                 let placeNameText = cell.placeNameLabel.text
+                searchController.searchBar.text = placeNameText
                 var subtitleText = cell.placeAddressLabel.text
                 if subtitleText == "Search Nearby" {
                     subtitleText = city.name
                 }
-                search(for: "\(placeNameText ?? "") \(subtitleText ?? "")", alt: placeNameText ?? "")
+                search(for: placeNameText, alt: subtitleText)
+                searchController.searchBar.resignFirstResponder()
             } else if model.currentMode == .query && model.queryMode == .showingResults && model.filteredPlaceTypes.count == 0 {
                 // Place clicked
             } else {
@@ -1196,6 +1327,8 @@ class ACityCollectionViewController: UICollectionViewController {
                 resetView()
                 fsqModel.fsqPlaces = []
                 getCategories()
+                getFSQLovedPlaces()
+                getTags()
                 Task {
                     guard let selectedPlaceType = model.selectedPlaceType else {return}
                     let _ = try? await PlaceTypeClickedRequest(placeTypeID: selectedPlaceType.id).send()
@@ -1222,12 +1355,18 @@ class ACityCollectionViewController: UICollectionViewController {
                 case .recent:
                     model.sortMethod = .popular
                 }
+                if model.currentMode == .filtered {
+                    getFSQPlaces()
+                }
             } else if let _ = collectionView.cellForItem(at: indexPath) as? AskAISelectorCollectionViewCell {
                 switch model.currentMode {
                 case .askAI:
                     resetView()
                 default:
                     model.currentMode = .askAI
+                    
+                    let topOffset = CGPoint(x: 0, y: -collectionView.adjustedContentInset.top)
+                    collectionView.setContentOffset(topOffset, animated: true)
                     getSuggestedGPTPrompts()
                 }
             }
@@ -1240,11 +1379,11 @@ class ACityCollectionViewController: UICollectionViewController {
         }
         
         if let cell = collectionView.cellForItem(at: indexPath) as? SearchAutoCompletionCollectionViewCell, cell.cellType == .place {
+            guard model.currentMode != .askAI else { return }
             performSegue(withIdentifier: "ApplePlaceClicked", sender: cell)
         }
         
         if let cell = collectionView.cellForItem(at: indexPath) as? GPTPromptCollectionViewCell, let prompt = cell.prompt {
-            print(("gpt prompt clicked"))
             submitGPTPrompt(prompt: prompt)
         }
     }
@@ -1274,7 +1413,6 @@ class ACityCollectionViewController: UICollectionViewController {
     @IBSegueAction func applePlaceSelected(_ coder: NSCoder, sender: Any?) -> ApplePlaceViewController? {
         
         guard let cell = sender as? SearchAutoCompletionCollectionViewCell, let place = cell.applePlace else {return nil}
-        
         return ApplePlaceViewController(coder: coder, place: place)
     }
     
@@ -1300,7 +1438,34 @@ class ACityCollectionViewController: UICollectionViewController {
         })
         
         //return DetailVC
-        return PlaceDetailCollectionViewController(coder: coder, place: place, sectionsPlaces: places, placePic: img, placeTypeID: model.selectedPlaceType?.id)
+        return PlaceDetailCollectionViewController(coder: coder, place: place, sectionsPlaces: places, placePic: img, placeTypeID: model.selectedPlaceType?.id, cityID: city.cityID)
+    }
+    
+    @IBSegueAction func gptNotFoundPlaceSelected(_ coder: NSCoder, sender: Any?) -> GPTPlaceViewController? {
+        guard let cell = sender as? SearchAutoCompletionCollectionViewCell, let place = cell.gptPlace else {return nil}
+        return GPTPlaceViewController(coder: coder, place: place)
+    }
+    
+    override func shouldPerformSegue(withIdentifier identifier: String, sender: Any?) -> Bool {
+        if let cell = sender as? PlaceBoxCollectionViewCell {
+            if cell.placePic.image == nil { return false }
+        }
+        if let cell = sender as? LovedPlaceCollectionViewCell {
+            if cell.placePic.image == nil { return false }
+        }
+        if let cell = sender as? PlaceDetailCollectionViewCell {
+            if cell.placePic.image == nil { return false }
+        }
+        if let cell = sender as? RankedPlaceCollectionViewCell {
+            if cell.placePic.image == nil { return false }
+        }
+        if let cell = sender as? PlaceSearchCollectionViewCell {
+            if cell.placePic.image == nil { return false }
+        }
+        if let cell = sender as? GPTPlaceCollectionViewCell {
+            if cell.placePic.image == nil { return false }
+        }
+        return true
     }
     
     @IBAction func unwindFromCitySelector(_ segue: UIStoryboardSegue) {
@@ -1309,11 +1474,13 @@ class ACityCollectionViewController: UICollectionViewController {
             navigationItem.title = city.name
             getPlaceTypes()
             getNeighborhoods()
+            getFSQLovedPlaces()
             update()
             deallocateMem()
             resetView()
             model.group.notify(queue: .main) {
                 guard let selectedPlaceType = self.model.selectedPlaceType else {return}
+                self.getCategories()
                 if !self.model.placeTypes.contains(selectedPlaceType) {
                     if !self.model.placeTypes.isEmpty {
                         self.model.selectedPlaceType = self.model.placeTypes[0]
@@ -1327,12 +1494,35 @@ class ACityCollectionViewController: UICollectionViewController {
     @IBAction func unwindFromFilters(segue: UIStoryboardSegue) {
         if !filters.isEmpty {
             model.currentMode = .filtered
-            getFSQPlaces()
+            if (unwindCityID ?? -1 == city.cityID || unwindCityID == nil) && (unwindPlaceTypeID ?? -1 == model.selectedPlaceType?.id ?? -1 || unwindPlaceTypeID == nil) {
+                getFSQPlaces()
+            } else if unwindCityID != nil || unwindPlaceTypeID != nil {
+                if unwindCityID != city.cityID && unwindPlaceTypeID != model.selectedPlaceType?.id && unwindCityID != nil && unwindPlaceTypeID != nil  {
+                    clearPlaces()
+                    switchBoth()
+                } else {
+                    if unwindCityID ?? -1 == city.cityID {
+                        unwindCityID = nil
+                    } else if unwindCityID != nil  {
+                        clearPlaces()
+                        switchCity()
+                    }
+                    if unwindPlaceTypeID == model.selectedPlaceType?.id {
+                        unwindPlaceTypeID = nil
+                    } else if unwindPlaceTypeID != nil {
+                        clearPlaces()
+                        switchPlaceType()
+                    }
+                }
+            }
         } else {
             model.currentMode = .curated
             model.filteredPlaces = model.places
-            updateCollectionView()
+            update()
         }
+    }
+    
+    @IBAction func unwindToACity(segue: UIStoryboardSegue) {
     }
     
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
@@ -1346,14 +1536,36 @@ class ACityCollectionViewController: UICollectionViewController {
             filtersACityVC.selectedCategory = model.selectedCategory
             filtersACityVC.selectedTags = model.selectedTags ?? []
             filtersACityVC.selectedTagIndexes = model.selectedTagIndexes
-        } else if segue.identifier == "ViewMap" {
+            filtersACityVC.milesFromUser = model.milesFilter
+            filtersACityVC.cityID = city.cityID
+            filtersACityVC.placeTypeID = model.selectedPlaceType?.id
+        } else if segue.identifier == "ViewMap" || segue.identifier == "ViewMap2" {
             let mapViewController = segue.destination as! MapViewController
             switch model.currentMode {
             case .askAI:
-                mapViewController.places = gptModel.gptGooglePlaces
+                mapViewController.places = gptModel.gptFSQPlaces
+                mapViewController.cityID = city.cityID
+                mapViewController.placeTypeID = model.selectedPlaceType?.id ?? 0
             default:
                 mapViewController.places = model.filteredPlaces + fsqModel.fsqPlaces + fsqModel.fsqLovedPlaces
+                mapViewController.cityID = city.cityID
+                mapViewController.placeTypeID = model.selectedPlaceType?.id ?? 0
             }
+        } else if segue.identifier == "AddToItinerary" {
+            let navController = segue.destination as! UINavigationController
+            let tableController = navController.topViewController as! AddToItineraryTableViewController
+            guard let place = model.itinerarySelectedPlace else { return }
+            var isFSQPlace = false
+            var type = "Concierge"
+            if let _ = place as? FSQPlace {
+                isFSQPlace = true
+                type = "FSQ"
+            }
+            tableController.place = place
+            tableController.cityID = place.cityID
+            tableController.isFSQPlace = isFSQPlace
+            
+            tableController.type = type
         }
     }
 }
@@ -1363,7 +1575,7 @@ extension ACityCollectionViewController {
         var itemsBySection: [ViewModel.Section:[ViewModel.Item]]?
         
         switch model.currentMode {
-        case .curated:
+        case .curated, .seeAll:
             itemsBySection = createCuratedItemsBySection()
         case .filtered:
             model.model = createCuratedItemsBySection() ?? [:]
@@ -1429,13 +1641,21 @@ extension ACityCollectionViewController {
                     case .recent:
                         return lhsPlace.id > rhsPlace.id
                     }
+                case (.rankedList(let lhsPlace), .rankedList(let rhsPlace)):
+                    switch model.sortMethod {
+                    case .popular:
+                        return lhsPlace.communityVotes > rhsPlace.communityVotes
+                    case .location:
+                        return returnDistanceScore(place: lhsPlace) > returnDistanceScore(place: rhsPlace)
+                    case .recent:
+                        return lhsPlace.id > rhsPlace.id
+                    }
                 default:
                     return false
                 }
             })
             itemsBySection[sectionA] = placesArray
         }
-                                                    
         return itemsBySection
     }
     
@@ -1444,6 +1664,7 @@ extension ACityCollectionViewController {
         if model.selectedNeighborhood != nil { numSelectedFilters += 1 }
         if model.selectedCategory != nil { numSelectedFilters += 1 }
         if model.selectedTags != nil { numSelectedFilters += 1 }
+        if model.milesFilter != nil { numSelectedFilters += 1 }
         let filtersItem: ViewModel.Item = .filtersSelector(selectedFilters: numSelectedFilters)
         
         var itemsBySection: [ViewModel.Section:[ViewModel.Item]] = [.filtersAndSort:[.viewModeSelector, .sortMethodSelector, filtersItem, .askAISelector]]
@@ -1462,44 +1683,50 @@ extension ACityCollectionViewController {
             return nil
         }
         
+        if model.currentMode == .seeAll {
+            itemsBySection[.gptClear] = [.gptClear]
+            model.sectionRanks[.gptClear] = 200000
+        }
+        
         for place in model.filteredPlaces {
-            let placeLoved = userLovedPlaces.contains { thisPlace in
+            let placeLoved = userLovedPlaces.prefix(10).contains { thisPlace in
                 "\(thisPlace.name)\(thisPlace.id)\(thisPlace.fsqID ?? "")" == "\(place.name)\(place.id)\(place.fsqID ?? "")"
             }
-            switch (placeLoved, model.viewMode) {
-            case (true, .detail), (true, .grid):
-                if var placesArray = itemsBySection[.userLovedList(full: false)] {
+            
+            var lovedListFull = false
+            if let placeItems = itemsBySection[.userLovedList] {
+                if placeItems.count > 9 { lovedListFull = true }
+            }
+            
+            switch (placeLoved, model.viewMode, lovedListFull) {
+            case (true, .detail, false), (true, .grid, false):
+                if var placesArray = itemsBySection[.userLovedList] {
                     //if that section contains less than 10 item
-                    placesArray.append(.placeList(place: place))
-                    if placesArray.count < 8 {
-                        itemsBySection[.userLovedList(full: false)] = placesArray
-                    } else {
-                        itemsBySection.removeValue(forKey: .userLovedList(full: false))
-                        itemsBySection[.userLovedList(full: true)] = placesArray
+                    if placesArray.count < 10 {
+                        placesArray.append(.placeList(place: place))
+                        itemsBySection.removeValue(forKey: .userLovedList)
+                        if let index = model.sections.firstIndex(of: .userLovedList) {
+                            model.sections.remove(at: index)
+                            model.sections.insert(.userLovedList, at: index)
+                        }
+                        itemsBySection[.userLovedList] = placesArray
                     }
-                } else if var _  = itemsBySection[.userLovedList(full: true)]{
-                    print("section is full")
                 } else {
-                    itemsBySection[.userLovedList(full: false)] = [.placeList(place: place)]
-                    model.sectionRanks[.userLovedList(full: false)] = 100000
+                    itemsBySection[.userLovedList] = [.placeList(place: place)]
+                    model.sectionRanks[.userLovedList] = 100000
                 }
-            case (_, .list):
+            case (_, .list, _):
                 if var placesArray = itemsBySection[.rankedList] {
                     //if that section contains less than 10 item
                     placesArray.append(.rankedList(place: place))
-                    if placesArray.count < 8 {
-                        itemsBySection[.rankedList] = placesArray
-                    } else {
-                        itemsBySection.removeValue(forKey: .userLovedList(full: false))
-                        itemsBySection[.rankedList] = placesArray
-                    }
+                    itemsBySection[.rankedList] = placesArray
                 } else {
                     itemsBySection[.rankedList] = [.rankedList(place: place)]
                     model.sectionRanks[.rankedList] = 100000
                 }
-            case (false, .detail):
+            case (false, .detail, _), (true, .detail, true):
                 if var placesArray = itemsBySection[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)], placesArray.isEmpty != true {
-                    //if that section contains less than 10 items
+                    //if that section contains less than 4 items
                     if placesArray.count < 4 {
                         //then add the current place
                         placesArray.append(.placeDetail(place: place))
@@ -1507,11 +1734,11 @@ extension ACityCollectionViewController {
                         // and add communityLoves value to that section's rank
                         switch model.sortMethod {
                         case .recent:
-                            model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)]! += place.id
+                            model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)]! += place.id + 1
                         case .location:
-                            model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)]! += Int(returnDistanceScore(place: place))
+                            model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)]! += Int(returnDistanceScore(place: place)) + 1
                         case .popular:
-                            model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)]! += place.communityVotes
+                            model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)]! += place.communityVotes + 1
                         }
                     } else {
                         //if place's genre exists in itemsBySection (only accessed after neighborhood exists and is maxed out)
@@ -1524,11 +1751,11 @@ extension ACityCollectionViewController {
                                 //and add communityVotes value to sectionRank
                                 switch model.sortMethod {
                                 case .recent:
-                                    model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)]! += place.id
+                                    model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)]! += place.id + 1
                                 case .location:
-                                    model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)]! += Int(returnDistanceScore(place: place))
+                                    model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)]! += Int(returnDistanceScore(place: place)) + 1
                                 case .popular:
-                                    model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)]! += place.communityVotes
+                                    model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)]! += place.communityVotes + 1
                                 }
                             }
                             if placesArray2.count == 4 {
@@ -1536,22 +1763,22 @@ extension ACityCollectionViewController {
                                 itemsBySection[.placeDetail(headerText: (place.genre), sectionType: .category, full: true)] = placesArray2
                                 switch model.sortMethod {
                                 case .recent:
-                                    model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: true)]! = (model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)] ?? 0) + place.id
+                                    model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: true)]! = (model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)] ?? 0) + place.id + 1
                                 case .location:
-                                    model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: true)]! = (model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)] ?? 0) + Int(returnDistanceScore(place: place))
+                                    model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: true)]! = (model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)] ?? 0) + Int(returnDistanceScore(place: place)) + 1
                                 case .popular:
-                                    model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: true)]! = (model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)] ?? 0) + place.communityVotes
+                                    model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: true)]! = (model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)] ?? 0) + place.communityVotes + 1
                                 }
                             }
                         } else {
                             itemsBySection[.placeDetail(headerText: place.genre, sectionType: .category, full: false)] = [.placeBox(place: place)]
                             switch model.sortMethod {
                             case .recent:
-                                model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)] = place.id
+                                model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)] = place.id + 1
                             case .location:
-                                model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)] = Int(returnDistanceScore(place: place))
+                                model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)] = Int(returnDistanceScore(place: place)) + 1
                             case.popular:
-                                model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)] = place.communityVotes
+                                model.sectionRanks[.placeDetail(headerText: place.genre, sectionType: .category, full: false)] = place.communityVotes + 1
                             }
                         }
                     }
@@ -1560,19 +1787,19 @@ extension ACityCollectionViewController {
                         itemsBySection[.placeDetail(headerText: (place.neighborhood), sectionType: .neighborhood, full: true)] = placesArray
                         switch model.sortMethod {
                         case .recent:
-                            model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: true)]! = (model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] ?? 0) + place.id
+                            model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: true)]! = (model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] ?? 0) + place.id + 1
                         case .location:
-                            model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: true)]! = (model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] ?? 0) + Int(returnDistanceScore(place: place))
+                            model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: true)]! = (model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] ?? 0) + Int(returnDistanceScore(place: place)) + 1
                         case .popular:
-                            model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: true)] = (model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] ?? 0) + place.communityVotes
+                            model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: true)] = (model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] ?? 0) + place.communityVotes + 1
                         }
                     }
                 } else {
                     itemsBySection[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] = [.placeDetail(place: place)]
-                    model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] = place.communityVotes
+                    model.sectionRanks[.placeDetail(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] = place.communityVotes + 1
                 }
                 
-            case (false, .grid):
+            case (false, .grid, _), (true, .grid, true):
                 if var placesArray = itemsBySection[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)], placesArray.isEmpty != true {
                     //if that section contains less than 10 items
                     if placesArray.count < 4 {
@@ -1582,11 +1809,11 @@ extension ACityCollectionViewController {
                         // and add communityLoves value to that section's rank
                         switch model.sortMethod {
                         case .recent:
-                            model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)]! += place.id
+                            model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)]! += place.id + 1
                         case .location:
-                            model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)]! += Int(returnDistanceScore(place: place))
+                            model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)]! += Int(returnDistanceScore(place: place)) + 1
                         case .popular:
-                            model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)]! += place.communityVotes
+                            model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)]! += place.communityVotes + 1
                         }
                     } else {
                         //if place's genre exists in itemsBySection (only accessed after neighborhood exists and is maxed out)
@@ -1599,11 +1826,11 @@ extension ACityCollectionViewController {
                                 //and add communityVotes value to sectionRank
                                 switch model.sortMethod {
                                 case .recent:
-                                    model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)]! += place.id
+                                    model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)]! += place.id + 1
                                 case .location:
-                                    model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)]! += Int(returnDistanceScore(place: place))
+                                    model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)]! += Int(returnDistanceScore(place: place)) + 1
                                 case .popular:
-                                    model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)]! += place.communityVotes
+                                    model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)]! += place.communityVotes + 1
                                 }
                             }
                             if placesArray2.count == 4 {
@@ -1611,22 +1838,22 @@ extension ACityCollectionViewController {
                                 itemsBySection[.placeBox(headerText: (place.genre), sectionType: .category, full: true)] = placesArray2
                                 switch model.sortMethod {
                                 case .recent:
-                                    model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: true)]! = (model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)] ?? 0) + place.id
+                                    model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: true)]! = (model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)] ?? 0) + place.id + 1
                                 case .location:
-                                    model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: true)]! = (model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)] ?? 0) + Int(returnDistanceScore(place: place))
+                                    model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: true)]! = (model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)] ?? 0) + Int(returnDistanceScore(place: place)) + 1
                                 case .popular:
-                                    model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: true)]! = (model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)] ?? 0) + place.communityVotes
+                                    model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: true)]! = (model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)] ?? 0) + place.communityVotes + 1
                                 }
                             }
                         } else {
                             itemsBySection[.placeBox(headerText: place.genre, sectionType: .category, full: false)] = [.placeBox(place: place)]
                             switch model.sortMethod {
                             case .recent:
-                                model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)] = place.id
+                                model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)] = place.id + 1
                             case .location:
-                                model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)] = Int(returnDistanceScore(place: place))
+                                model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)] = Int(returnDistanceScore(place: place)) + 1
                             case.popular:
-                                model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)] = place.communityVotes
+                                model.sectionRanks[.placeBox(headerText: place.genre, sectionType: .category, full: false)] = place.communityVotes + 1
                             }
                         }
                     }
@@ -1635,54 +1862,79 @@ extension ACityCollectionViewController {
                         itemsBySection[.placeBox(headerText: (place.neighborhood), sectionType: .neighborhood, full: true)] = placesArray
                         switch model.sortMethod {
                         case .recent:
-                            model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: true)]! = (model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] ?? 0) + place.id
+                            model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: true)]! = (model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] ?? 0) + place.id + 1
                         case .location:
-                            model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: true)]! = (model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] ?? 0) + Int(returnDistanceScore(place: place))
+                            model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: true)]! = (model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] ?? 0) + Int(returnDistanceScore(place: place)) + 1
                         case .popular:
-                            model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: true)] = (model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] ?? 0) + place.communityVotes
+                            model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: true)] = (model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] ?? 0) + place.communityVotes + 1
                         }
                     }
                 } else {
                     itemsBySection[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] = [.placeBox(place: place)]
                     model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] = place.communityVotes
+                    switch model.sortMethod {
+                    case .recent:
+                        model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] = place.id + 1
+                    case .location:
+                        model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] = Int(returnDistanceScore(place: place)) + 1
+                    case .popular:
+                        model.sectionRanks[.placeBox(headerText: place.neighborhood, sectionType: .neighborhood, full: false)] = place.communityVotes + 1
+                    }
                 }
             }
-            fsqModel.fsqIDs.append(place.fsqID ?? "")
+            fsqModel.fsqIDs.append(place.fsqID)
         }
         
-        for place in fsqModel.fsqLovedPlaces {
+        var fsqLovedPlaces = fsqModel.fsqLovedPlaces
+        if model.currentMode == .filtered {
+            if model.selectedCategory != nil {
+                fsqLovedPlaces = fsqLovedPlaces.filter { fsqPlace in
+                    fsqPlace.genre == model.selectedCategory?.name
+                }
+            }
+            if model.selectedNeighborhood != nil {
+                fsqLovedPlaces = fsqLovedPlaces.filter { fsqPlace in
+                    fsqPlace.neighborhood == model.selectedNeighborhood?.name
+                }
+            }
+            if model.selectedTags != nil {
+                fsqLovedPlaces = []
+                // TO-DO: Implement tags logic for FSQPlaces using getSelectedTags
+            }
+        }
+        for place in fsqLovedPlaces {
             switch model.viewMode {
             case .list:
                 if var placesArray = itemsBySection[.rankedList] {
                     //if that section contains less than 10 item
                     placesArray.append(.rankedList(place: place))
-                    if placesArray.count < 8 {
-                        itemsBySection[.rankedList] = placesArray
-                    } else {
-                        itemsBySection.removeValue(forKey: .userLovedList(full: false))
-                        itemsBySection[.rankedList] = placesArray
-                    }
+                    itemsBySection[.rankedList] = placesArray
                 } else {
                     itemsBySection[.rankedList] = [.rankedList(place: place)]
                     model.sectionRanks[.rankedList] = 100000
                 }
             default:
-                if var placesArray = itemsBySection[.userLovedList(full: false)] {
+                if var placesArray = itemsBySection[.userLovedList] {
                     //if that section contains less than 10 item
-                    placesArray.append(.placeList(place: place))
-                    if placesArray.count < 8 {
-                        itemsBySection[.userLovedList(full: false)] = placesArray
-                    } else {
-                        itemsBySection.removeValue(forKey: .userLovedList(full: false))
-                        itemsBySection[.userLovedList(full: true)] = placesArray
+                    if placesArray.count < 10 {
+                        placesArray.append(.placeList(place: place))
+                        itemsBySection.removeValue(forKey: .userLovedList)
+                        if let index = model.sections.firstIndex(of: .userLovedList) {
+                            model.sections.remove(at: index)
+                            model.sections.insert(.userLovedList, at: index)
+                        }
+                        itemsBySection[.userLovedList] = placesArray
                     }
-                } else if var _  = itemsBySection[.userLovedList(full: true)]{
-                    print("section is full")
                 } else {
-                    itemsBySection[.userLovedList(full: false)] = [.placeList(place: place)]
-                    model.sectionRanks[.userLovedList(full: false)] = 100000
+                    itemsBySection[.userLovedList] = [.placeList(place: place)]
+                    model.sectionRanks[.userLovedList] = 100000
                 }
             }
+        }
+        
+        if model.places.count + fsqLovedPlaces.count + fsqModel.fsqPlaces.count < 4 && currentUser.role != "GuestUser" {
+            itemsBySection[.addAPlace] = [.addAPlace]
+            model.sectionRanks[.addAPlace] = -500
         }
         
         return itemsBySection
@@ -1694,7 +1946,13 @@ extension ACityCollectionViewController {
         var ct = 0
         var bigCt = 0
         
-        let fsqPlaces = fsqModel.fsqPlaces
+        var fsqPlaces = fsqModel.fsqPlaces
+        
+        if model.milesFilter != nil {
+            if let places = filterPlacesWithinRange(places: fsqPlaces) as? [FSQPlace] {
+                fsqPlaces = places
+            }
+        }
         
         switch model.viewMode {
         case .list:
@@ -1730,9 +1988,9 @@ extension ACityCollectionViewController {
                     ct += 1
                     bigCt += 1
                 }
-                if ct%4 == 0 {
-                    itemsBySection[.placeBox(headerText: headerText, sectionType: secType, full: false, idx: bigCt/4)] = currentPlaces
-                    model.sectionRanks[.placeBox(headerText: headerText, sectionType: secType, full: false, idx: bigCt/4)] = 50-bigCt
+                if ct%3 == 0 {
+                    itemsBySection[.placeBox(headerText: headerText, sectionType: secType, full: false, idx: bigCt/3)] = currentPlaces
+                    model.sectionRanks[.placeBox(headerText: headerText, sectionType: secType, full: false, idx: bigCt/3)] = 0-bigCt
                     currentPlaces = []
                 }
             }
@@ -1760,12 +2018,17 @@ extension ACityCollectionViewController {
                     ct += 1
                     bigCt += 1
                 }
-                if ct%4 == 0 {
-                    itemsBySection[.placeDetail(headerText: headerText, sectionType: secType, full: false, idx: bigCt/4)] = currentPlaces
-                    model.sectionRanks[.placeDetail(headerText: headerText, sectionType: secType, full: false, idx: bigCt/4)] = 50-bigCt
+                if ct%3 == 0 {
+                    itemsBySection[.placeDetail(headerText: headerText, sectionType: secType, full: false, idx: bigCt/3)] = currentPlaces
+                    model.sectionRanks[.placeDetail(headerText: headerText, sectionType: secType, full: false, idx: bigCt/3)] = 0-bigCt
                     currentPlaces = []
                 }
             }
+        }
+        
+        if fsqPlaces.count > 0 {
+            itemsBySection[.pbFSQ] = [.pbFSQ]
+            model.sectionRanks[.pbFSQ] = 0
         }
         
         return itemsBySection
@@ -1784,16 +2047,12 @@ extension ACityCollectionViewController {
         
         var currentPlaces1 = [ViewModel.Item]()
         var currentPlaces2 = [ViewModel.Item]()
-        var currentPlaces3 = [ViewModel.Item]()
         var currentPlaces4 = [ViewModel.Item]()
         for place in model.filteredPlaces {
             currentPlaces1.append(.placeSearchList(place: place))
         }
         for place in fsqModel.fsqPlaces {
             currentPlaces2.append(.placeSearchList(place: place))
-        }
-        for place in googleMapsModel.googlePlaces {
-            currentPlaces3.append(.placeSearchList(place: place))
         }
         for place in appleMapKitModel.applePlaces {
             currentPlaces4.append(.placeSearchListApple(place: place))
@@ -1802,17 +2061,15 @@ extension ACityCollectionViewController {
             model.sectionRanks[.placeSearchList(src: .concierge)] = 20
             itemsBySection[.placeSearchList(src: .concierge)] = currentPlaces1
         }
-        if currentPlaces2.isEmpty == false {
-            model.sectionRanks[.placeSearchList(src: .fsq)] = 10
-            itemsBySection[.placeSearchList(src: .fsq)] = currentPlaces2
-        }
-        if currentPlaces3.isEmpty == false {
-            model.sectionRanks[.placeSearchList(src: .google)] = 15
-            itemsBySection[.placeSearchList(src: .google)] = currentPlaces3
-        }
         if currentPlaces4.isEmpty == false {
-            model.sectionRanks[.placeSearchList(src: .apple)] = 5
+            model.sectionRanks[.placeSearchList(src: .apple)] = 10
             itemsBySection[.placeSearchList(src: .apple)] = currentPlaces4
+        }
+        if currentPlaces2.isEmpty == false {
+            model.sectionRanks[.placeSearchList(src: .fsq)] = 5
+            itemsBySection[.placeSearchList(src: .fsq)] = currentPlaces2
+            model.sectionRanks[.pbFSQ] = 6
+            itemsBySection[.pbFSQ] = [.pbFSQ]
         }
         
         return itemsBySection
@@ -1862,11 +2119,11 @@ extension ACityCollectionViewController {
             itemsBySection[.gptPrompts] = promptItems
             model.sectionRanks[.gptPrompts] = 500
         case .loadingPlaces:
-            itemsBySection[.gptLoading] = [.gptLoading(gptPlaces: gptModel.gptPlaces.count, googlePlaces: gptModel.gptGooglePlaces.count)]
+            itemsBySection[.gptLoading] = [.gptLoading(gptPlaces: gptModel.gptPlaces.count, fsqPlaces: gptModel.gptFSQPlaces.count)]
             model.sectionRanks[.gptLoading] = 1000
             
             var placeItems: [ViewModel.Item] = []
-            for place in gptModel.gptGooglePlaces {
+            for place in gptModel.gptFSQPlaces {
                 placeItems.append(.gptPlace(place: place))
             }
             itemsBySection[.gptPlace] = placeItems
@@ -1876,7 +2133,7 @@ extension ACityCollectionViewController {
             model.sectionRanks[.gptClear] = 1500
         case .displayingPlaces:
             var placeItems: [ViewModel.Item] = []
-            for place in gptModel.gptGooglePlaces {
+            for place in gptModel.gptFSQPlaces {
                 placeItems.append(.gptPlace(place: place))
             }
             itemsBySection[.gptPlace] = placeItems
@@ -1884,6 +2141,18 @@ extension ACityCollectionViewController {
             
             itemsBySection[.gptClear] = [.gptClear]
             model.sectionRanks[.gptClear] = 1500
+            
+            if gptModel.gptFSQPlaces.count > 0 {
+                itemsBySection[.pbFSQ] = [.pbFSQ]
+                model.sectionRanks[.pbFSQ] = 1250
+            }
+            
+            var notFoundPlaceItems: [ViewModel.Item] = []
+            for place in gptModel.gptNotFoundPlaces {
+                notFoundPlaceItems.append(.gptNotFoundPlace(place: place))
+            }
+            itemsBySection[.gptNotFoundPlace] = notFoundPlaceItems
+            model.sectionRanks[.gptNotFoundPlace] = 10
         }
         
         return itemsBySection
@@ -1900,7 +2169,11 @@ extension ACityCollectionViewController: PlaceBoxCollectionViewCellDelegate, Lov
     
     func placeLoved(place: Place) {
         UIView.transition(with: view, duration: 0.8, options: .showHideTransitionViews, animations: { [weak self] () -> Void in
-            self?.updateCollectionView()
+            if let _ = place as? FSQPlace {
+                self?.getFSQLovedPlaces()
+            } else {
+                self?.updateCollectionView()
+            }
         }, completion: nil)
     }
     
@@ -1914,8 +2187,7 @@ extension ACityCollectionViewController: PlaceBoxCollectionViewCellDelegate, Lov
     }
     
     func addToItinerary(_ place: Place, isFSQ: Bool) {
-        model.contextMenuIsFSQ = isFSQ
-        model.contextMenuPlace = place
+        model.itinerarySelectedPlace = place
         self.performSegue(withIdentifier: "AddToItinerary", sender: nil)
     }
     
@@ -1933,14 +2205,19 @@ extension ACityCollectionViewController: PlaceBoxCollectionViewCellDelegate, Lov
     }
     
     func clearPressed() {
-        resetAskAIView()
-        updateCollectionView()
+        if model.currentMode == .askAI {
+            resetAskAIView()
+            updateCollectionView()
+        } else if model.currentMode == .seeAll {
+            resetView()
+            updateCollectionView()
+        }
     }
 }
 
 extension ACityCollectionViewController {
     func getUserLovedListHeight() -> (Int, CGFloat) {
-        if let numberOfItems = model.model[.userLovedList(full: model.lovedListFull)]?.count, numberOfItems > 0 {
+        if let numberOfItems = model.model[.userLovedList]?.count, numberOfItems > 0 {
             switch numberOfItems {
             case 1:
                 return (1,50)
@@ -1954,11 +2231,32 @@ extension ACityCollectionViewController {
 }
 
 extension ACityCollectionViewController: NamedSectionHeaderViewDelegate {
-    // Implement the delegate method
     func headerViewButtonTapped(_ headerView: NamedSectionHeaderView) {
-        // Perform the desired actions and segue here
-        // You have access to the headerView if needed
-        // Example: perform a segue
+        // see all button
+        model.currentMode = .seeAll
+        model.viewMode = .list
+        if let nei = headerView.neighborhood {
+            model.filteredPlaces = model.places.filter { place in
+                return place.neighborhood.localizedCaseInsensitiveContains(nei)
+            }
+            updateCollectionView()
+        } else if let cat = headerView.genre {
+            model.filteredPlaces = model.places.filter { place in
+                return place.genre.localizedCaseInsensitiveContains(cat)
+            }
+            updateCollectionView()
+        } else if headerView.lovedPlaces {
+            model.filteredPlaces = model.places.filter { place in
+                return userLovedPlaces.contains { lovedPlace in
+                    if let lovedPlace = lovedPlace as? ConciergePlace {
+                        return place == lovedPlace
+                    } else {
+                        return false
+                    }
+                }
+            }
+            updateCollectionView()
+        }
     }
 }
 
@@ -1966,11 +2264,10 @@ extension ACityCollectionViewController {
     
     func getFSQPlaces() {
         fsqModel.fsqPlaces = []
+        fsqModel.fsqIDs = []
         
-        var i = model.places.count
-        while i < fsqModel.fsqIDs.count {
-            fsqModel.fsqIDs.remove(at: i)
-            i += 1
+        for place in fsqModel.fsqLovedPlaces {
+            fsqModel.fsqIDs.append(place.fsqID)
         }
         
         let neiSelected = filters.contains(where: { filter in filter == .neighborhoods })
@@ -1981,23 +2278,15 @@ extension ACityCollectionViewController {
             getSelectedTags(tags: selectedTags)
         }
         
-        var sort = ""
-        
-        switch model.sortMethod {
-        case .popular:
-            sort = "RELEVANCE"
-        case .location:
-            sort = "DISTANCE"
-        case .recent:
-            sort = "RATING"
-        }
+        var sort = "RATING"
+        if model.sortMethod == .location { sort = "DISTANCE" }
         
         // Cancel previous FSQ request task
         fsqPlacesRequestTask?.cancel()
 
         // Common filter logic
         if tagsSelected {
-            model.group.notify(queue: .global()) {
+            model.group.notify(queue: .main) {
                 self.applyFilters(neiSelected: neiSelected, catSelected: catSelected, tagsSelected: tagsSelected, sort: sort)
             }
         } else {
@@ -2011,11 +2300,15 @@ extension ACityCollectionViewController {
         
         let selectedNeighborhood = model.selectedNeighborhood
         let selectedCategory = model.selectedCategory
-        let selectedTagPlaceIDs = model.selectedTagPlaceIDs
+        _ = model.selectedTagPlaceIDs
         
         // Update based on filters
         if selectedCategory != nil {
-            categoryCode = String(selectedCategory?.fsqCategoryCode ?? 0)
+            if let catCode = selectedCategory?.fsqCategoryCode {
+                categoryCode = String(catCode)
+            }
+        } else if let catCode = model.selectedPlaceType?.fsqCategoryCode, catCode != "" {
+            categoryCode = catCode
         }
         
         if model.sortMethod == .location {
@@ -2039,17 +2332,23 @@ extension ACityCollectionViewController {
             return matches
         }
         
+        if model.milesFilter != nil {
+            if let places = filterPlacesWithinRange(places: model.filteredPlaces) as? [ConciergePlace] {
+                model.filteredPlaces = places
+            }
+        }
+        
         // Make FSQ update calls based on selected filters
-        if neiSelected || catSelected || tagsSelected {
+        if neiSelected || catSelected || tagsSelected || model.milesFilter != nil {
             if neiSelected {
                 fsqUpdateDefault(categoryCode: categoryCode, sort: sort)
             } else if catSelected {
                 if categoryCode != "0" {
                     fsqUpdateCategory(categoryCode: categoryCode ?? "", ll: ll, sort: sort)
                 } else if let selectedCategoryQuery = selectedCategory?.name {
-                    fsqUpdateQuery(query: selectedCategoryQuery)
+                    fsqUpdateQuery(query: selectedCategoryQuery, near: city.name)
                 }
-            } else if tagsSelected {
+            } else if tagsSelected || model.milesFilter != nil {
                 self.updateCollectionView()  // Tags-only update
             }
         } else {
@@ -2060,12 +2359,12 @@ extension ACityCollectionViewController {
     
     func fsqUpdateCategory(categoryCode: String, ll: String, sort: String) {
         fsqPlacesRequestTask = Task {
-            if let fsqParent = try? await FSQPlaceLLRequest(category: categoryCode, ll: ll, radius: 10000, sort: sort, limit: 50).send(), fsqParent.results.count > 0 {
+            if let fsqParent = try? await FSQPlaceLLRequest(category: categoryCode, ll: ll, radius: 10000, sort: sort, limit: 25).send(), fsqParent.results.count > 0 {
                 let fsqDecoded = fsqParent.results
                 for place in fsqDecoded {
                     let appendPlace = place.placeify()
-                    if fsqModel.fsqIDs.contains(appendPlace.fsqID ?? "") == false {
-                        fsqModel.fsqIDs.append(appendPlace.fsqID ?? "")
+                    if fsqModel.fsqIDs.contains(appendPlace.fsqID) == false {
+                        fsqModel.fsqIDs.append(appendPlace.fsqID)
                         fsqModel.fsqPlaces.append(appendPlace)
                     }
                 }
@@ -2075,8 +2374,9 @@ extension ACityCollectionViewController {
                 }, completion: nil)
             } else {
                 resetView()
+                showNoResultsPopup()
                 UIView.transition(with: self.view, duration: 0.4, options: .showHideTransitionViews, animations: { () -> Void in
-                    self.updateCollectionView()
+                    self.placeTypeSwitched() // in case unwind from filters
                 }, completion: nil)
             }
         }
@@ -2087,12 +2387,12 @@ extension ACityCollectionViewController {
         model.group.enter()
         fsqPlacesRequestTask = Task { [weak self] in
             guard let self = self else {return}
-            if let fsqParent = try? await FSQPlaceNearRequest(categories: categoryCode, near: "\(selectedNeighborhood.name) \(city.name)", sort: sort, limit: 50).send(), fsqParent.results.count > 0 {
+            if let fsqParent = try? await FSQPlaceNearRequest(categories: categoryCode, near: "\(selectedNeighborhood.name) \(city.name)", sort: sort, limit: 25).send(), fsqParent.results.count > 0 {
                 let fsqDecoded = fsqParent.results
                 for place in fsqDecoded {
                     let appendPlace = place.placeify()
-                    if fsqModel.fsqIDs.contains(appendPlace.fsqID ?? "") == false {
-                        fsqModel.fsqIDs.append(appendPlace.fsqID ?? "")
+                    if fsqModel.fsqIDs.contains(appendPlace.fsqID) == false {
+                        fsqModel.fsqIDs.append(appendPlace.fsqID)
                         fsqModel.fsqPlaces.append(appendPlace)
                     }
                 }
@@ -2102,23 +2402,22 @@ extension ACityCollectionViewController {
                 }, completion: nil)
             } else {
                 resetView()
+                showNoResultsPopup()
                 UIView.transition(with: self.view, duration: 0.4, options: .showHideTransitionViews, animations: { () -> Void in
-                    self.updateCollectionView()
+                    self.placeTypeSwitched()  // in case unwind from filters
                 }, completion: nil)
             }
             model.group.leave()
         }
     }
     
-    func fsqUpdateQuery(query: String) {
-        
-        var sort = ""
+    func fsqUpdateQuery(query: String, near: String) {
         var ll = ""
         var radius = 0
         fsqModel.fsqPlaces = []
         
-        switch (model.locDenied, model.locValue.longitude) {
-        case (true, _), (false, 0.0):
+        switch (model.locDenied, model.locValue.longitude, model.sortMethod) {
+        case (true, _, _), (false, 0.0, _), (_, _, .popular),  (_, _, .recent):
             ll = "\(city.latitude),\(city.longitude)"
             radius = 10000
         default:
@@ -2126,14 +2425,7 @@ extension ACityCollectionViewController {
             radius = 5000
         }
         
-        switch model.sortMethod {
-        case .popular:
-            sort = "RELEVANCE"
-        case .location:
-            sort = "DISTANCE"
-        case .recent:
-            sort = "POPULARITY"
-        }
+        let sort = "RELEVANCE"
         
         fsqPlacesRequestTask?.cancel()
         fsqPlacesRequestTask = Task {
@@ -2141,49 +2433,14 @@ extension ACityCollectionViewController {
                 let fsqDecoded = fsqParent.results
                 for place in fsqDecoded {
                     let appendPlace = place.placeify()
-                    if fsqModel.fsqIDs.contains(appendPlace.fsqID ?? "") == false {
-                        fsqModel.fsqIDs.append(appendPlace.fsqID ?? "")
+                    if fsqModel.fsqIDs.contains(appendPlace.fsqID) == false {
+                        fsqModel.fsqIDs.append(appendPlace.fsqID)
                         fsqModel.fsqPlaces.append(appendPlace)
                     }
                 }
                 fsqPlacesRequestTask = nil
                 updateCollectionView()
             }
-        }
-    }
-}
-
-extension ACityCollectionViewController {
-    func googleUpdateQuery(query: String) {
-        var ll = ""
-        
-        switch (model.locDenied, model.locValue.longitude) {
-        case (true, _), (false, 0.0):
-            ll = "\(city.latitude),\(city.longitude)"
-        default:
-            ll = "\(model.locValue.latitude),\(model.locValue.longitude)"
-        }
-        
-        googleMapsModel.googlePlaces = []
-        googlePlacesRequestTask = Task {
-            if let googleFindParent = try? await GoogleFindCandidatePlacesRequest(textQuery: query, location: ll).send(), googleFindParent.results.count > 0 {
-                let googleFindPlaceDecoded = googleFindParent.results
-                let _ = googleFindPlaceDecoded[0].place_id
-                for candidate in googleFindParent.results {
-                    if googleMapsModel.googlePlaces.count > 6 { break }
-                    let placeID = candidate.place_id
-                    if let googleParent = try? await GooglePlaceDetailRequest(placeID: placeID).send() {
-                        let place = googleParent.result
-                        let appendPlace = place.placeify()
-                        if googleMapsModel.googlyIDs.contains(placeID) == false {
-                            googleMapsModel.googlePlaces.append(appendPlace)
-                            googleMapsModel.googlyIDs.append(placeID)
-                        }
-                    }
-                }
-            }
-            googlePlacesRequestTask = nil
-            updateCollectionView()
         }
     }
 }
@@ -2225,6 +2482,16 @@ extension ACityCollectionViewController {
             return (distanceToReturn, "City Center")
         }
     }
+    
+    func filterPlacesWithinRange(places: [Place]) -> [Place] {
+        guard let miles = model.milesFilter else {return places}
+        // Filter the places based on the distance from you
+        return places.filter { place in
+            let (distance, _) = distanceFromYou(place: place)
+            let floatDist = Float(distance)
+            return floatDist <= miles
+        }
+    }
 }
 
 // MARK: Location Manager Extension
@@ -2237,7 +2504,7 @@ extension ACityCollectionViewController: CLLocationManagerDelegate {
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("location finder error")
+        // print("location finder error", error)
     }
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -2264,12 +2531,18 @@ extension ACityCollectionViewController: UISearchResultsUpdating, UISearchBarDel
                 appleMapKitModel.searchCompleter.queryFragment = searchString
             } else {
                 model.currentMode = .curated
+                filters = []
+                model.selectedCategory = nil
+                model.selectedNeighborhood = nil
+                model.selectedTags = nil
                 model.filteredPlaces = model.places
                 model.filteredPlaceTypes = model.placeTypes
+                
                 fsqModel.fsqPlaces = []
                 appleMapKitModel.applePlaces = []
             }
         }
+        model.isUserTyping = false
         
         UIView.transition(with: self.view, duration: 0.4, options: .showHideTransitionViews, animations: { () -> Void in
             self.updateCollectionView()
@@ -2286,10 +2559,21 @@ extension ACityCollectionViewController: UISearchResultsUpdating, UISearchBarDel
             }
         default:
             if let searchString = searchController.searchBar.text, !searchString.isEmpty {
-                search(for: "\(searchString)", alt: searchString)
+                search(for: "\(searchString)", alt: nil)
                 searchBar.resignFirstResponder()
             }
         }
+        model.isUserTyping = false
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        model.isUserTyping = !searchText.isEmpty
+    }
+    
+    // Called when the user ends editing.
+    func searchBarTextDidEndEditing(_ searchBar: UISearchBar) {
+        model.isUserTyping = false
+        self.updateCollectionView()
     }
 }
 
@@ -2333,9 +2617,12 @@ extension ACityCollectionViewController: MKLocalSearchCompleterDelegate {
         let searchRequest = MKLocalSearch.Request()
         // Only display results that are in travel-related categories.
         searchRequest.pointOfInterestFilter = MKPointOfInterestFilter(including: MKPointOfInterestCategory.travelPointsOfInterest)
-        searchRequest.naturalLanguageQuery = queryString
+        if let alt = alt {
+            searchRequest.naturalLanguageQuery = "\(queryString) \(alt)"
+        } else {
+            searchRequest.naturalLanguageQuery = "\(queryString) \(city.name)"
+        }
         search(using: searchRequest)
-        
         
         // Implement after the user clicks a search completion or hits enter/return
         //Concierge Places
@@ -2346,13 +2633,15 @@ extension ACityCollectionViewController: MKLocalSearchCompleterDelegate {
             placeType.name.localizedCaseInsensitiveContains(queryString)
         })
         
-        //fsq and google places
+        //fsq places
         if queryString.count > 3 {
-            if let _ = alt {
-                fsqUpdateQuery(query: queryString)
+            if let alt = alt {
+                fsqUpdateQuery(query: queryString, near: alt)
+                appleMapKitModel.searchCompleter.queryFragment = "\(queryString) \(alt)"
+            } else {
+                fsqUpdateQuery(query: queryString, near: city.name)
+                appleMapKitModel.searchCompleter.queryFragment = "\(queryString) \(city.name)"
             }
-            appleMapKitModel.searchCompleter.queryFragment = queryString
-            googleUpdateQuery(query: queryString)
         }
         model.queryMode = .showingResults
     }
@@ -2383,41 +2672,87 @@ extension ACityCollectionViewController: MKLocalSearchCompleterDelegate {
     }
 }
 
-import OpenAIKit
-
 extension ACityCollectionViewController {
     func getSuggestedGPTPrompts() {
         let placeTypeName = model.selectedPlaceType?.name ?? "Place"
         let cityName = city.name
-        let gptPrompt = """
-You are providing suggested prompts to an iOS app that will be displayed to the user. The user will be able to click one of the prompts and another request will be made to suggest places for the user to browse. The prompts should be relevant for the Place Type and City provided and be a good search term that would have associated places in a Point of Interest database like Google Maps Platform or Apple Maps. Keep it interesting for the user by providing obvious prompts along with some creative ones they wouldn't immediately think of.
-        Provide the response in a JSON format. Don't provide any supporting text, only the JSON response.
+        let systemPrompt = """
+You are providing suggested prompts to an iOS app that will be displayed to the user. The prompts should be a search term that would result in places in a Point of Interest database like Google Maps Platform or Apple Maps. Keep it interesting for the user by providing some creative ones.
+        Provide the response in a JSON format. Don't provide any supporting text, only the JSON response. The response should start with the character "{" and end with the character "}"
         {
           "suggestedPrompts": [{"prompt": "prompt1"},{"prompt": "prompt2"}]
         }
-        Please provide a list of 1-10 suggested prompts for a user browsing *\(placeTypeName)* in *\(cityName)*.
+"""
+        
+        let gptPrompt = """
+        Please provide 1-10 suggested prompts for a user browsing *\(placeTypeName)* in *\(cityName)*.
 """
         let username = currentUser.username ?? "\(currentUser.firstName) \(currentUser.lastName)"
-        let aiMessage = AIMessage(role: .user, content: gptPrompt)
-        openAI.sendChatCompletion(newMessage: aiMessage, previousMessages: [], model: .gptV4(.gpt4), maxTokens: 500, n: 1, user: username, completion: { [weak self] result in
-            switch result {
-            case .success(let aiResult):
-                // Handle the result actions
-                if let text = aiResult.choices.first?.message?.content {
-                    self?.parseGPTPromptsResponse(text: text)
-                }
-            case .failure(let error):
-                //Handle the error
-                let alert = UIAlertController(title: "Error", message: error.localizedDescription, preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "Ok", style: .default))
-                self?.present(alert, animated: true)
+        let request = ChatGPTCompletionRequest(model: "gpt-4o", systemPrompt: systemPrompt, prompts: [gptPrompt], maxTokens: 300, temperature: 0.7, username: username)
+        
+        Task {
+            let response = try await request.send()
+            if let text = response.choices.first?.message.content {
+                parseGPTPromptsResponse(text: text)
+            } else {
+                // print("GPT Prompts Error")
             }
-        })
+        }
+    }
+    
+    func getSuggestedGPTPromptsForAskAI() {
+        
+        let systemPrompt = """
+                You are providing suggested search prompts for an iOS app focused on discovering interesting places and attractions.
+                Each suggestion should help users quickly find exciting, unique, or popular locations from an AI Places/Point of Interest suggestion service.
+                Provide the response in a JSON format. Don't provide any supporting text, only the JSON response. This includes markdown like ``` ``` or json. Only include the valid JSON. The response should start with the character "{" and end with the character "}". See the required format below.
+        --------------------------------------------------------------------------------------------------
+                {"suggestedPrompts": [{"prompt": "prompt1"},{"prompt": "prompt2"}]}
+        --------------------------------------------------------------------------------------------------
+        
+        """
+        
+        var gptPrompt = """
+                Please provide 10 engaging, creative suggested prompts to help users discover interesting places from a Point-of-Interest database (such as Google Maps or Apple Maps).
+        
+            Follow these guidelines:
+                1. Prompts should be concise, inviting, and relevant.  
+                2. Include creative suggestions users might not immediately consider—hidden gems, themed locations, trending spots, unique experiences, etc.  
+                3. If the "ll" parameter has a valid latitude and longitude, ensure that 3-5 of the 10 prompts clearly relate to places near the provided coordinates, using phrases like "near me", "nearby", the local city name, or a local neighborhood. This means the remaining 4-6 recommendations should be outside the users location.
+                4. If no "ll" paramter is provided, don't center the prompt suggestions around any specific location - provide prompt suggestions for a variety of locations. Still center each suggested prompt in a geographic location, but choose a variety of locations in the US, and maybe 1 suggested prompt for a geographic location outside the US.
+                5. If "userID" is provided, incorporate personalization based on the user's past searches or indicated preferences. 
+                6. Keep 9-10 of the 10 prompts based in geographic areas within the United States, unless the user's previous searches explicitly include international locations.
+        
+        Parameters provided:
+        ll: 
+        """
+        if !model.locDenied && model.locValue.latitude != 0 && model.locValue.longitude != 0 {
+            gptPrompt += "\(model.locValue.latitude),\(model.locValue.longitude)"
+        }
+        
+        let username = String(currentUser.id)
+        
+        gptPrompt += "\nuserID: "
+        gptPrompt += username
+        
+        let request = ChatGPTCompletionRequest(model: "gpt-4o", systemPrompt: systemPrompt, prompts: [gptPrompt], maxTokens: 500, temperature: 1.2, username: username)
+        
+        Task {
+            let response = try await request.send()
+            if let text = response.choices.first?.message.content {
+                self.parseGPTPromptsResponseForAskAI(text: text)
+            } else {
+                // print("GPT Prompts for AskAI Error")
+            }
+        }
     }
     
     func submitGPTPrompt(prompt: String) {
         gptModel.lastestUserPrompt = prompt
-        gptModel.gptGooglePlaces = []
+        
+        let currentToken = gptModel.apiRequestToken
+        
+        gptModel.gptFSQPlaces = []
         gptModel.gptPlaces = []
         
         gptModel.askAIMode = .loadingPlaces
@@ -2425,44 +2760,45 @@ You are providing suggested prompts to an iOS app that will be displayed to the 
         
         let placeTypeName = model.selectedPlaceType?.name ?? "Place"
         let cityName = city.name
-        let gptPrompt = """
-You are providing places to an iOS app that will be displayed to the user. Please provide a list of places based on a prompt that a user is submitting. The user is either selecting a suggested prompt or typing one of their own. Included with this is a Place Type and a City. Do the best you can to match each of the conditions and provide 1-10 places for the user to further interact with in the app. Ideally it should be a place that would have an associated record in a Point of Interest database like Google Maps Platform or Apple Maps.
-
-Provide the response in a JSON format with Place Name, Place Address, and Place Website. Don't provide any supporting text, only the JSON response. 
+        let systemPrompt = """
+        You are providing places to an iOS app that will be displayed to the user.
+        
+        Provide the response in a JSON format with Place Name and Place Address. Don't provide any supporting text, only the JSON response. See the required format below.  The response should start with the character "{" and end with the character "}". Dont include any whitespace. 
 {
   "suggestedPlaces": [
 {"name": "placeName1", "address":"address1", "website":"website1"},
 {"name": "placeName2", "address":"address2", "website":"website2"}]
 }
-
+"""
+        let gptPrompt = """
+Please provide a list of places based on the below prompt. Included with this prompt are Place Type and a City parameters. Do the best you can to match each of the parameters and provide 1-10 places for the user to further interact with in the app. Ideally it should be a place that would have an associated record in a Point of Interest database like Google Maps Platform or Apple Maps.
 User Prompt: \(prompt)
 City: \(cityName)
 Place Type: \(placeTypeName)
 """
         let username = currentUser.username ?? "\(currentUser.firstName) \(currentUser.lastName)"
-        let aiMessage = AIMessage(role: .user, content: gptPrompt)
-        openAIRequestTask = Task {
-            openAI.sendChatCompletion(newMessage: aiMessage, previousMessages: [], model: .gptV4(.gpt4), maxTokens: 500, n: 1, user: username, completion: { [weak self] result in
-                switch result {
-                case .success(let aiResult):
-                    // Handle the result actions
-                    if let text = aiResult.choices.first?.message?.content {
-                        self?.parseGPTPlacesResponse(text: text)
-                    }
-                case .failure(let error):
-                    //Handle the error
-                    let alert = UIAlertController(title: "Error", message: error.localizedDescription, preferredStyle: .alert)
-                    alert.addAction(UIAlertAction(title: "Ok", style: .default))
-                    self?.present(alert, animated: true)
-                }
-            })
+        let request = ChatGPTCompletionRequest(model: "gpt-4o", systemPrompt: systemPrompt, prompts: [gptPrompt], maxTokens: 500, temperature: 0.7, username: username)
+        
+        Task {
+            let response = try await request.send()
+            
+            if self.gptModel.apiRequestToken != currentToken {
+                // The view has been reset; ignore this result
+                return
+            }
+            
+            if let text = response.choices.first?.message.content {
+                self.parseGPTPlacesResponse(text: text)
+            } else {
+                //Handle the error
+                // print("GPT Places error")
+            }
         }
     }
     
     func parseGPTPromptsResponse(text: String) {
         // Convert the string to a Data object
         guard let jsonData = text.data(using: .utf8) else {
-            print("Error: Cannot convert string to Data object")
             return
         }
 
@@ -2478,20 +2814,44 @@ Place Type: \(placeTypeName)
             }
         } catch {
             // If decoding fails, print an error message
-            print("Error decoding JSON: \(error)")
+            // print("Error decoding JSON: \(error)")
         }
         
         DispatchQueue.main.async {
-            UIView.transition(with: self.view, duration: 0.8, options: .showHideTransitionViews, animations: { [weak self] () -> Void in
-                self?.updateCollectionView()
-            }, completion: nil)
+            if !self.model.isUserTyping {
+                // User is not typing, so update the UI (e.g., reload the collection view)
+                self.updateCollectionView()
+            }
+        }
+    }
+    
+    func parseGPTPromptsResponseForAskAI(text: String) {
+        // Convert the string to a Data object
+        guard let jsonData = text.data(using: .utf8) else {
+            // print("Error: Cannot convert string to Data object")
+            return
+        }
+
+        // Create an instance of JSONDecoder
+        let decoder = JSONDecoder()
+
+        // Attempt to decode the Data object into our Swift structs
+        do {
+            let response = try decoder.decode(GPTPromptsResponse.self, from: jsonData)
+            // Successfully decoded, you can now use the data
+            for prompt in response.suggestedPrompts {
+                askAISuggestedPrompts.append(prompt.prompt)
+            }
+        } catch {
+            // If decoding fails, print an error message
+            // print("err parsing GPT response")
         }
     }
     
     func parseGPTPlacesResponse(text: String) {
         // Convert the string to a Data object
         guard let jsonData = text.data(using: .utf8) else {
-            print("Error: Cannot convert string to Data object")
+            // print("Error: Cannot convert string to Data object")
             return
         }
 
@@ -2507,58 +2867,117 @@ Place Type: \(placeTypeName)
             }
         } catch {
             // If decoding fails, print an error message
-            print("Error decoding JSON: \(error)")
+            // print("Error decoding JSON: \(error)")
         }
         
         DispatchQueue.main.async {
             self.updateCollectionView()
         }
-        getGPTGooglePlaces()
+        getGPTFSQPlaces()
     }
     
-    func getGPTGooglePlaces() {
+    func getGPTFSQPlaces() {
+        let currentToken = gptModel.apiRequestToken
+        
         guard !gptModel.gptPlaces.isEmpty else { return }
-        var ll = ""
         
-        switch (model.locDenied, model.locValue.longitude) {
-        case (true, _), (false, 0.0):
-            ll = "\(city.latitude),\(city.longitude)"
-        default:
-            ll = "\(model.locValue.latitude),\(model.locValue.longitude)"
-        }
+        gptModel.gptFSQPlaces = []
         
-        gptModel.gptGooglePlaces = []
-        
-        googlePlacesRequestTask = Task {
-            for place in gptModel.gptPlaces {
-                let query = "\(place.name) \(place.address)"
-                if let googleFindParent = try? await GoogleFindCandidatePlacesRequest(textQuery: query, location: ll).send(), googleFindParent.results.count > 0 {
-                    let googleFindPlaceDecoded = googleFindParent.results
-                    let _ = googleFindPlaceDecoded[0].place_id
-                    let candidate = googleFindParent.results[0]
-                    
-                    let placeID = candidate.place_id
-                    if let googleParent = try? await GooglePlaceDetailRequest(placeID: placeID).send() {
-                        let googlyPlace = googleParent.result
-                        let appendPlace = googlyPlace.placeify()
-                        
-                        if googleMapsModel.googlyIDs.contains(placeID) == false {
-                            gptModel.gptGooglePlaces.append(appendPlace)
-                            googleMapsModel.googlyIDs.append(placeID)
-                            DispatchQueue.main.async {
-                                self.updateCollectionView()
-                            }
+        fsqPlacesRequestTask = Task {
+            for gptPlace in gptModel.gptPlaces {
+                if Task.isCancelled || self.gptModel.apiRequestToken != currentToken {
+                    return
+                }
+                
+                if let fsqParent = try? await FSQExactPlaceRequest(query: gptPlace.name, near: gptPlace.address).send(), fsqParent.results.count > 0 {
+                    let fsqDecoded = fsqParent.results
+                    let fsqPlace = fsqDecoded[0]
+                    if fsqModel.fsqIDs.contains(fsqPlace.fsq_id) {
+                        continue
+                    }
+                    let appendPlace = fsqPlace.placeify()
+                    gptModel.gptFSQPlaces.append(appendPlace)
+                    gptModel.fsqIDs.append(appendPlace.fsqID ?? "0")
+                    DispatchQueue.main.async {
+                        // Check the token before updating the UI
+                        if self.gptModel.apiRequestToken == currentToken {
+                            self.updateCollectionView()
                         }
                     }
+                } else {
+                    gptModel.gptNotFoundPlaces.append(gptPlace)
                 }
             }
             DispatchQueue.main.async {
-                self.updateCollectionView()
+                // Check the token before updating the UI
+                if self.gptModel.apiRequestToken == currentToken {
+                    self.gptModel.askAIMode = .displayingPlaces
+                    self.updateCollectionView()
+                }
             }
-            gptModel.askAIMode = .displayingPlaces
-            googlePlacesRequestTask = nil
+            fsqPlacesRequestTask = nil
         }
     }
+    
+//    func getGPTGooglePlaces() {
+//        let currentToken = gptModel.apiRequestToken
+//        guard !gptModel.gptPlaces.isEmpty else { return }
+//        var ll = ""
+//        
+//        switch (model.locDenied, model.locValue.longitude, model.sortMethod) {
+//        case (true, _, _), (false, 0.0, _), (_, _, .popular),  (_, _, .recent):
+//            ll = "\(city.latitude),\(city.longitude)"
+//        default:
+//            ll = "\(model.locValue.latitude),\(model.locValue.longitude)"
+//        }
+//        
+//        gptModel.gptGooglePlaces = []
+//        
+//        googlePlacesRequestTask = Task {
+//            for place in gptModel.gptPlaces {
+//                
+//                if Task.isCancelled || self.gptModel.apiRequestToken != currentToken {
+//                    return
+//                }
+//                
+//                let query = "\(place.name) \(place.address)"
+//                if let googleFindParent = try? await GoogleFindCandidatePlacesRequest(textQuery: query, location: ll).send(), googleFindParent.results.count > 0 {
+//                    let googleFindPlaceDecoded = googleFindParent.results
+//                    let _ = googleFindPlaceDecoded[0].place_id
+//                    let candidate = googleFindParent.results[0]
+//                    
+//                    let placeID = candidate.place_id
+//                    if let googleParent = try? await GooglePlaceDetailRequest(placeID: placeID).send() {
+//                        let googlyPlace = googleParent.result
+//                        let appendPlace = googlyPlace.placeify()
+//                        
+//                        if googleMapsModel.googlyIDs.contains(placeID) == false {
+//                            gptModel.gptGooglePlaces.append(appendPlace)
+//                            googleMapsModel.googlyIDs.append(placeID)
+//                            DispatchQueue.main.async {
+//                                // Check the token before updating the UI
+//                                if self.gptModel.apiRequestToken == currentToken {
+//                                    self.updateCollectionView()
+//                                }
+//                            }
+//                        }
+//                    } else {
+//                        gptModel.gptNotFoundPlaces.append(place)
+//                    }
+//                } else {
+//                    gptModel.gptNotFoundPlaces.append(place)
+//                }
+//            }
+//            DispatchQueue.main.async {
+//                // Check the token before updating the UI
+//                if self.gptModel.apiRequestToken == currentToken {
+//                    self.gptModel.askAIMode = .displayingPlaces
+//                    self.updateCollectionView()
+//                }
+//            }
+//            googlePlacesRequestTask = nil
+//        }
+//    }
 }
 
 extension ACityCollectionViewController {
@@ -2579,5 +2998,145 @@ extension ACityCollectionViewController {
                 }
             }
         }
+    }
+}
+
+extension ACityCollectionViewController: FiltersSelectorCellDelegate {
+    func resetFilters() {
+        model.selectedNeighborhood = nil
+        model.selectedTags = nil
+        model.selectedTagIndexes = Set<Int>()
+        model.selectedCategory = nil
+        model.milesFilter = nil
+        
+        DispatchQueue.main.async {
+            self.model.currentMode = .curated
+            self.model.filteredPlaces = self.model.places
+            self.fsqModel.fsqPlaces = []
+            self.update()
+        }
+    }
+}
+
+extension ACityCollectionViewController {
+    func showNoResultsPopup(message: String = "No results") {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first(where: { $0.isKeyWindow }) else { return }
+        
+        let popupLabel = UILabel()
+        popupLabel.text = message
+        popupLabel.textAlignment = .center
+        popupLabel.font = UIFont.systemFont(ofSize: 16, weight: .medium)
+        popupLabel.textColor = .white
+        popupLabel.backgroundColor = UIColor.blue.withAlphaComponent(0.5)
+        popupLabel.layer.cornerRadius = 10
+        popupLabel.clipsToBounds = true
+        popupLabel.alpha = 0.0
+        
+        let labelHeight: CGFloat = 50
+        let labelWidth: CGFloat = window.frame.width * 0.8
+        popupLabel.frame = CGRect(x: (window.frame.width - labelWidth) / 2,
+                                  y: (window.frame.height - labelHeight) / 2,
+                                  width: labelWidth,
+                                  height: labelHeight)
+        
+        window.addSubview(popupLabel)
+        
+        // Animate fade in
+        UIView.animate(withDuration: 0.3, animations: {
+            popupLabel.alpha = 1.0
+        }) { _ in
+            // Fade out after delay
+            UIView.animate(withDuration: 0.3, delay: 1.5, options: .curveEaseInOut, animations: {
+                popupLabel.alpha = 0.0
+            }) { _ in
+                popupLabel.removeFromSuperview()
+            }
+        }
+    }
+}
+
+extension ACityCollectionViewController {
+    func switchCity() {
+        if let unwindCityID = unwindCityID {
+            Task {
+                if let newCity = try? await GetCityRequest(cityID: unwindCityID).send() {
+                    city = newCity
+                    citySwitched()
+                }
+            }
+        }
+    }
+    
+    func switchPlaceType() {
+        if let unwindPlaceTypeID = unwindPlaceTypeID {
+            model.group.enter()
+            Task {
+                if let newPlaceType = try? await GetPlaceTypeRequest(placeTypeID: unwindPlaceTypeID).send() {
+                    model.selectedPlaceType = newPlaceType
+                    placeTypeSwitched()
+                }
+                model.group.leave()
+            }
+        }
+    }
+    
+    func citySwitched() {
+        getNeighborhoods()
+        getPlaceTypes()
+        self.navigationItem.title = city.name
+        
+        self.model.group.notify(queue: .main) {
+            self.getCategories()
+            self.getTags()
+            self.getSuggestedGPTPrompts()
+            self.getFSQLovedPlaces()
+        }
+        
+        switch model.currentMode {
+        case .curated:
+            update()
+        case .filtered:
+            getFSQPlaces()
+        default:
+            updateCollectionView()
+        }
+    }
+    
+    func placeTypeSwitched() {
+        self.model.group.notify(queue: .main) {
+            self.getCategories()
+            self.getTags()
+            self.getSuggestedGPTPrompts()
+            self.getFSQLovedPlaces()
+        }
+        
+        switch model.currentMode {
+        case .curated:
+            update()
+        case .filtered:
+            getFSQPlaces()
+        default:
+            updateCollectionView()
+        }
+    }
+    
+    func switchBoth() {
+        if let unwindPlaceTypeID = unwindPlaceTypeID {
+            model.group.enter()
+            Task {
+                if let newPlaceType = try? await GetPlaceTypeRequest(placeTypeID: unwindPlaceTypeID).send() {
+                    model.selectedPlaceType = newPlaceType
+                    switchCity()
+                }
+                model.group.leave()
+            }
+        }
+    }
+}
+
+extension ACityCollectionViewController: LowInventoryAddPlaceCellDelegate {
+    func addPlaceCellDidTapAddLabel() {
+        performSegue(withIdentifier: "LowInventoryAddNewPlace", sender: nil)
     }
 }

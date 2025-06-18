@@ -9,7 +9,7 @@ import UIKit
 import MapKit
 import SafariServices
 
-class GPTPlaceViewController: UIViewController {
+class GPTPlaceViewController: UIViewController, UIGestureRecognizerDelegate {
     
     var place: GPTPlace
     
@@ -41,6 +41,10 @@ class GPTPlaceViewController: UIViewController {
         websiteButton.isHidden = false
         
         addPinToMap()
+        
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(mapViewTapped(_:)))
+        tapGesture.delegate = self
+        pinPlaceMapView.addGestureRecognizer(tapGesture)
     }
     
     func addPinToMap() {
@@ -48,8 +52,8 @@ class GPTPlaceViewController: UIViewController {
         let geocoder = CLGeocoder()
         geocoder.geocodeAddressString(place.address) { [weak self] (placemarks, error) in
             guard let self = self else { return }
-            if let error = error {
-                print("Geocoding error: \(error.localizedDescription)")
+            if let _ = error {
+                // print("Geocoding error: \(error.localizedDescription)")
                 return
             }
             
@@ -65,6 +69,26 @@ class GPTPlaceViewController: UIViewController {
                 // Set the MapView's region to focus on the pin
                 let region = MKCoordinateRegion(center: mapPin.coordinate, latitudinalMeters: 1000, longitudinalMeters: 1000)
                 self.pinPlaceMapView.setRegion(region, animated: false)
+            }
+        }
+    }
+    
+    @objc func mapViewTapped(_ sender: UITapGestureRecognizer) {
+        openInMaps()
+    }
+    
+    func openInMaps() {
+        let geocoder = CLGeocoder()
+        geocoder.geocodeAddressString(place.address) { (placemarks, error) in
+            if let _ = error {
+                // print("Geocoding error: \(error.localizedDescription)")
+                return
+            }
+            
+            if let placemark = placemarks?.first {
+                let mapItem = MKMapItem(placemark: MKPlacemark(placemark: placemark))
+                mapItem.name = self.place.name
+                mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDefault])
             }
         }
     }

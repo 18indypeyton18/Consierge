@@ -20,42 +20,17 @@ class OpenMapDirections {
     // Use Latitude and Longitude to set the destination and show the user directions
     
     static func present(in viewController: UIViewController, sourceView: UIView, address: String, placeName: String) {
-        let actionSheet = UIAlertController(title: "Open Location", message: "Choose an app to open direction", preferredStyle: .actionSheet)
-        actionSheet.addAction(UIAlertAction(title: "Apple Maps", style: .default, handler: { _ in
-            // Pass the coordinate that you want here
-            
-            let geocoder = CLGeocoder()
+        let geocoder = CLGeocoder()
 
-            geocoder.geocodeAddressString(address) {
-                placemarks, error in
-                let placemark = placemarks?.first
-                let lat = placemark?.location?.coordinate.latitude
-                let lon = placemark?.location?.coordinate.longitude
-                if let lat = lat, let lon = lon {
-                    openMapInApp(.apple, latitude: lat, longitude: lon, placeName: placeName)
-                }
+        geocoder.geocodeAddressString(address) {
+            placemarks, error in
+            let placemark = placemarks?.first
+            let lat = placemark?.location?.coordinate.latitude
+            let lon = placemark?.location?.coordinate.longitude
+            if let lat = lat, let lon = lon {
+                openMapInApp(.apple, latitude: lat, longitude: lon, placeName: placeName)
             }
-        }))
-        
-        actionSheet.addAction(UIAlertAction(title: "Google Maps", style: .default, handler: { _ in
-            // Pass the coordinate inside this URL
-            let geocoder = CLGeocoder()
-
-            geocoder.geocodeAddressString(address) {
-                placemarks, error in
-                let placemark = placemarks?.first
-                let lat = placemark?.location?.coordinate.latitude
-                let lon = placemark?.location?.coordinate.longitude
-                if let lat = lat, let lon = lon {
-                    openMapInApp(.google, latitude: lat, longitude: lon, placeName: placeName)
-                }
-            }
-        }))
-        
-        actionSheet.popoverPresentationController?.sourceRect = sourceView.bounds
-        actionSheet.popoverPresentationController?.sourceView = sourceView
-        actionSheet.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
-        viewController.present(actionSheet, animated: true, completion: nil)
+        }
     }
 }
 

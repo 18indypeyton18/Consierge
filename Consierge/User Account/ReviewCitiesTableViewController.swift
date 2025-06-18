@@ -40,7 +40,6 @@ class ReviewCitiesTableViewController: UITableViewController {
             } else {
                 self.citiesToReview = []
             }
-            print(citiesToReview)
             self.tableView.reloadData()
             citiesRequestTask = nil
         }
@@ -158,14 +157,10 @@ class ReviewCitiesTableViewController: UITableViewController {
 extension ReviewCitiesTableViewController: MassEditTableViewCellDelegate {
     func deselectAllRows() {
         for i in 1...1 {
-            print(i)
             let numRows = tableView.numberOfRows(inSection: i)
-            print(numRows)
             if numRows != 0 {
                 for j in 0...(numRows - 1) {
-                    print(j)
                     let iP = IndexPath(row: j, section: i)
-                    print(iP)
                     tableView.deselectRow(at: iP, animated: true)
                 }
             }
@@ -174,14 +169,10 @@ extension ReviewCitiesTableViewController: MassEditTableViewCellDelegate {
     
     func selectAllRows() {
         for i in 1...1 {
-            print(i)
             let numRows = tableView.numberOfRows(inSection: i)
-            print(numRows)
             if numRows != 0 {
                 for j in 0...(numRows - 1) {
-                    print(j)
                     let iP = IndexPath(row: j, section: i)
-                    print(iP)
                     tableView.selectRow(at: iP, animated: true, scrollPosition: .none)
                 }
             }
@@ -192,7 +183,6 @@ extension ReviewCitiesTableViewController: MassEditTableViewCellDelegate {
         let selectedRows: [IndexPath] = tableView.indexPathsForSelectedRows ?? []
         
         if selectedRows == [] {
-            print("0000")
         } else {
             for i in selectedRows {
                 let city = citiesToReview[i.row]
@@ -205,7 +195,6 @@ extension ReviewCitiesTableViewController: MassEditTableViewCellDelegate {
         let selectedRows: [IndexPath] = tableView.indexPathsForSelectedRows ?? []
         
         if selectedRows == [] {
-            print("0000")
         } else {
             for i in selectedRows {
                 let city = citiesToReview[i.row]

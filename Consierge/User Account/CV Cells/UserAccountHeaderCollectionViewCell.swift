@@ -13,6 +13,7 @@ class UserAccountHeaderCollectionViewCell: UICollectionViewCell {
     
     @IBOutlet var userNameLabel: UILabel!
     @IBOutlet var profPicImageView: UIImageView!
+    @IBOutlet var placesAuthoredLabel: UILabel!
     
     override func awakeFromNib() {
         super.awakeFromNib()
@@ -21,12 +22,24 @@ class UserAccountHeaderCollectionViewCell: UICollectionViewCell {
         // Add tap gesture recognizer to the image view
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(profPicTapped))
         profPicImageView.addGestureRecognizer(tapGesture)
+        addGestureToLabel(label: placesAuthoredLabel, action: #selector(authorLabelTapped))
     }
     
     @objc func profPicTapped() {
         delegate?.updateProfPicClicked()
     }
+    
+    func addGestureToLabel(label: UILabel, action: Selector) {
+        label.isUserInteractionEnabled = true
+        let tapGesture = UITapGestureRecognizer(target: self, action: action)
+        label.addGestureRecognizer(tapGesture)
+    }
+    
+    @objc func authorLabelTapped() {
+        delegate?.authorLabelClicked() // Trigger delegate method
+    }
 }
 protocol UserAccountHeaderCellDelegate: AnyObject {
     func updateProfPicClicked()
+    func authorLabelClicked()
 }

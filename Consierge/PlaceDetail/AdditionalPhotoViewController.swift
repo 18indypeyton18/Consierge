@@ -25,8 +25,6 @@ class AdditionalPhotoViewController: UIViewController {
         setupGRs()
         if let photos = photos {
             placePic.image = photos[picIndex]
-            print(photos)
-            print(picIndex)
         }
     }
     
@@ -65,7 +63,7 @@ class AdditionalPhotoViewController: UIViewController {
     }
     
     @objc func pinched(sender: UIPinchGestureRecognizer) {
-        guard let view = sender.view else { return }
+        guard let _ = sender.view else { return }
 
         // When the pinch begins, store the current scale
         if sender.state == .began {

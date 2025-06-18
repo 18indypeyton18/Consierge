@@ -10,6 +10,9 @@ import UIKit
 class NamedSectionHeaderView: UICollectionReusableView {
     //Section Header for ACity Place type sections
     weak var delegate: NamedSectionHeaderViewDelegate?
+    var neighborhood: String?
+    var genre: String?
+    var lovedPlaces = false
     
     let nameLabel: UILabel = {
         let label = UILabel()
@@ -25,7 +28,7 @@ class NamedSectionHeaderView: UICollectionReusableView {
         button.setTitle("See All", for: .normal)
         button.setTitleColor(.systemBlue, for: .normal)
         button.titleLabel?.font = UIFont.systemFont(ofSize: 14)
-        button.addTarget(self, action: #selector(buttonTapped), for: .touchUpInside)
+        button.addTarget(NamedSectionHeaderView.self, action: #selector(buttonTapped), for: .touchUpInside)
         return button
     }()
     

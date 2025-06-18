@@ -98,16 +98,15 @@ class HomeViewController: UIViewController {
         appleSignInPlaceHolder.layer.shadowRadius = 2.0
         appleSignInPlaceHolder.layer.shadowOpacity = 0.75
         
-        facebookSignInPlaceHolder.layer.shadowColor = UIColor.lightGray.cgColor
-        facebookSignInPlaceHolder.layer.shadowOffset = CGSize(width: 0, height: 1)
-        facebookSignInPlaceHolder.layer.shadowRadius = 2.0
-        facebookSignInPlaceHolder.layer.shadowOpacity = 0.75
+//        facebookSignInPlaceHolder.layer.shadowColor = UIColor.lightGray.cgColor
+//        facebookSignInPlaceHolder.layer.shadowOffset = CGSize(width: 0, height: 1)
+//        facebookSignInPlaceHolder.layer.shadowRadius = 2.0
+//        facebookSignInPlaceHolder.layer.shadowOpacity = 0.75
     }
     
     func setupPage() {
-        
         //autoLogin if User Defaults are already set
-        if UserDefaults.standard.bool(forKey: "loggedIn") && UserDefaults.standard.string(forKey: "email") != "GuestUser" {
+        if UserDefaults.standard.bool(forKey: "loggedIn") {
             Task {
                 if currentUser.email == "GuestUser" {
                     if let user = try? await UserCheckRequest(userEmail: UserDefaults.standard.string(forKey: "email") ?? "").send() {
@@ -122,23 +121,23 @@ class HomeViewController: UIViewController {
         appleSignInButton.addTarget(self, action: #selector(handleAuthorizationAppleIDButtonPress), for: .touchUpInside)
         self.appleSignInPlaceHolder.addArrangedSubview(appleSignInButton)
         
-        let fbLoginButton = FBLoginButton()
-        fbLoginButton.translatesAutoresizingMaskIntoConstraints = false
-        facebookSignInPlaceHolder.addSubview(fbLoginButton)
-        fbLoginButton.layer.cornerRadius = 15
-        // Set up constraints
-        NSLayoutConstraint.activate([
-            fbLoginButton.leadingAnchor.constraint(equalTo: facebookSignInPlaceHolder.leadingAnchor),
-            fbLoginButton.trailingAnchor.constraint(equalTo: facebookSignInPlaceHolder.trailingAnchor),
-            fbLoginButton.topAnchor.constraint(equalTo: facebookSignInPlaceHolder.topAnchor),
-            fbLoginButton.bottomAnchor.constraint(equalTo: facebookSignInPlaceHolder.bottomAnchor)
-        ])
-        
-        if let token = AccessToken.current, !token.isExpired {
-            print("User is logged in, do work such as go to next view controller.")
-        }
-        
-        fbLoginButton.permissions = ["public_profile", "email"]
+//        let fbLoginButton = FBLoginButton()
+//        fbLoginButton.translatesAutoresizingMaskIntoConstraints = false
+//        facebookSignInPlaceHolder.addSubview(fbLoginButton)
+//        fbLoginButton.layer.cornerRadius = 15
+//        // Set up constraints
+//        NSLayoutConstraint.activate([
+//            fbLoginButton.leadingAnchor.constraint(equalTo: facebookSignInPlaceHolder.leadingAnchor),
+//            fbLoginButton.trailingAnchor.constraint(equalTo: facebookSignInPlaceHolder.trailingAnchor),
+//            fbLoginButton.topAnchor.constraint(equalTo: facebookSignInPlaceHolder.topAnchor),
+//            fbLoginButton.bottomAnchor.constraint(equalTo: facebookSignInPlaceHolder.bottomAnchor)
+//        ])
+//        
+//        if let token = AccessToken.current, !token.isExpired {
+//            print("User is logged in, do work such as go to next view controller.")
+//        }
+//        
+//        fbLoginButton.permissions = ["public_profile", "email"]
     }
     
     func autoLogin() {
@@ -153,7 +152,6 @@ class HomeViewController: UIViewController {
     
     @IBAction func continueAsGuest(_ sender: Any) {
         //set GuestUser for key email - directs user back to HomePage if they try to click Account tab. Set loggedIn to allow autoLogin in the future.
-        UserDefaults.standard.set(true, forKey: "loggedIn")
         currentUser = defaultUser
         autoLogin()
     }
@@ -170,7 +168,7 @@ class HomeViewController: UIViewController {
             let firstName = user.profile?.givenName
             let lastName = user.profile?.familyName
 
-            let profilePicUrl = user.profile?.imageURL(withDimension: 320)
+            let _ = user.profile?.imageURL(withDimension: 320)
             if let email = email {
                 //start user creation flow: Check if user exists -> (if no) signUpUser -> performLogin
                 self.checkUser(email: email, firstName: firstName ?? "", lastName: lastName ?? "", userIdentifier: nil)
@@ -179,7 +177,7 @@ class HomeViewController: UIViewController {
                 guard error == nil else { return }
                 guard let user = user else { return }
                 
-                let idToken = user.idToken
+                let _ = user.idToken
                 // Send ID token to backend (example below).
                 // https://developers.google.com/identity/sign-in/ios/backend-auth
             }
@@ -256,7 +254,7 @@ class HomeViewController: UIViewController {
                 }
             } else {
                 //print to console if registration failed
-                print("User Registration failed \(user)")
+                // print("User Registration failed \(user)")
             }
         }
     }
@@ -280,11 +278,10 @@ extension HomeViewController: ASAuthorizationControllerDelegate {
         case let passwordCredential as ASPasswordCredential:
             
             // Sign in using an existing iCloud Keychain credential.
-            let username = passwordCredential.user
-            let password = passwordCredential.password
-            print("username/password credential -------- unable to handle")
+            let _ = passwordCredential.user
+            let _ = passwordCredential.password
         default:
-            print("credentials weren't properly captured - Apple Sign In")
+            break
         }
     }
 }

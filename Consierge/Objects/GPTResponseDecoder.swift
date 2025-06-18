@@ -58,9 +58,11 @@ class GPTSuggestedConciergePlace: Decodable {
     var latitude: Double
     var longitude: Double
     var isLocal: Bool
+    var phoneNumber: String?
+    var menuURL: String?
     
         
-    init(placeName: String, address: String, city: City, placeType: String, website: String, category: String, neighborhood: String, suggestedDescr: String, price: Int, latitude: Double, longitude: Double, isLocal: Bool) {
+    init(placeName: String, address: String, city: City, placeType: String, website: String, category: String, neighborhood: String, suggestedDescr: String, price: Int, latitude: Double, longitude: Double, isLocal: Bool, phoneNumber: String?, menuURL: String?) {
         self.placeName = placeName
         self.address = address
         self.city = city
@@ -73,5 +75,11 @@ class GPTSuggestedConciergePlace: Decodable {
         self.latitude = latitude
         self.longitude = longitude
         self.isLocal = isLocal
+        self.phoneNumber = phoneNumber
+        self.menuURL = menuURL
     }
+}
+
+struct GPTModerationResponse: Decodable {
+    let moderationResult: String
 }

@@ -78,9 +78,8 @@ class CityGetter {
     func setUserBaseCity(baseCity: BaseCity) {
         Task {
             if let resultValue = try? await BaseCityRequest(baseCity: baseCity).send(), resultValue["status"] == "Success" {
-                print("successfully set")
             } else {
-                print("api failure")
+                // print("set base city api failure")
             }
         }
     }

@@ -15,6 +15,7 @@ struct PlaceType: Codable, Equatable {
     let iconName: String
     let clicked: Int
     var fsqCategoryCode: String
+    let singularName: String
 }
 
 extension PlaceType: Comparable {

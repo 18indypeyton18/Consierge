@@ -9,7 +9,7 @@ import UIKit
 import MapKit
 import SafariServices
 
-class ApplePlaceViewController: UIViewController {
+class ApplePlaceViewController: UIViewController, UIGestureRecognizerDelegate {
     
     var place: MKMapItem
     
@@ -53,6 +53,10 @@ class ApplePlaceViewController: UIViewController {
         }
         
         addPinToMap()
+        
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(mapViewTapped(_:)))
+        tapGesture.delegate = self
+        pinPlaceMapView.addGestureRecognizer(tapGesture)
     }
     
     func addPinToMap() {
@@ -85,6 +89,10 @@ class ApplePlaceViewController: UIViewController {
     
     @IBAction func phoneButtonTapped(_ sender: Any) {
         initiatePhoneCall()
+    }
+    
+    @objc func mapViewTapped(_ sender: UITapGestureRecognizer) {
+        place.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDefault])
     }
     
     func initiatePhoneCall() {

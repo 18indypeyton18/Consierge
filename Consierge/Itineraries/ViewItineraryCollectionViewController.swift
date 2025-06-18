@@ -22,18 +22,14 @@ class ViewItineraryCollectionViewController: UICollectionViewController, UpdateI
             static func == (lhs: ViewItineraryCollectionViewController.ViewModel.Section, rhs: ViewItineraryCollectionViewController.ViewModel.Section) -> Bool {
                 switch (lhs, rhs){
                 case (.itineraryLine(let lhsIL, _),.itineraryLine(let rhsIL, _)):
-                    if lhsIL.ID == rhsIL.ID{
-                        return true
-                    } else {
-                        return false
-                    }
+                    return "\(lhsIL.ID)\(lhsIL.placeName)" == "\(rhsIL.ID)\(rhsIL.placeName)"
                 }
             }
             
             func hash(into hasher: inout Hasher) {
                 switch self{
                 case .itineraryLine(let itineraryLine, _):
-                    hasher.combine(itineraryLine.ID)
+                    hasher.combine("\(itineraryLine.ID)\(itineraryLine.placeName)")
                 }
             }
             
@@ -70,19 +66,15 @@ class ViewItineraryCollectionViewController: UICollectionViewController, UpdateI
         }
     }
     
-    struct Model {
-        var itineraryLinesPlaces = [Int:Place]()
-        var placesInOrder = [Place]()
-    }
+    var itineraryLinesPlaces = [Int:Place]()
+    var placesInOrder = [Place]()
     
     @IBOutlet var editTabBarButton: UIBarButtonItem!
     
     
     var dataSource: DataSourceType!
-    var model = Model()
 
     var itinerary: Itinerary
-    var itineraryLines: [ItineraryLine]
     
     var inEditMode = false
     
@@ -102,7 +94,7 @@ class ViewItineraryCollectionViewController: UICollectionViewController, UpdateI
         navigationItem.title = itinerary.name
         
         //fetch Place details from each itineraryLines
-        update()
+        refreshItinerary()
         
         //set datasource and delegates
         dataSource = createDataSource()
@@ -112,6 +104,9 @@ class ViewItineraryCollectionViewController: UICollectionViewController, UpdateI
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        if itineraryAdded {
+            refreshItinerary()
+        }
     }
     
     required init?(coder: NSCoder) {
@@ -120,32 +115,28 @@ class ViewItineraryCollectionViewController: UICollectionViewController, UpdateI
     init?(coder: NSCoder, itinerary: Itinerary, itineraryLines: [ItineraryLine]) {
         //initialize required Itinerary and ItineraryLines values
         self.itinerary = itinerary
-        self.itineraryLines = itineraryLines
         super.init(coder: coder)
     }
     
     func update() {
         //fetch Place for each itineraryLine
         //iterates through each ItineraryLine, determines type, and fetches each Place individually
+        var itineraryLines = [ItineraryLine]()
+        if let itLines = itineraryLinesDict[itinerary.ID] {
+            itineraryLines = itLines
+        }
         updateTask = Task {
             for itineraryLine in itineraryLines {
                 let placeID = itineraryLine.placeID
                 switch itineraryLine.type {
-                case "fsqRestaurant", "fsqCafe", "fsqBar", "fsqActivity":
+                case "FSQ":
                     if let fsqPlace = try? await getFSQPlaceRequest(fsqID: itineraryLine.fsqID).send() {
                         let place = fsqPlace.placeify()
-                        model.itineraryLinesPlaces[itineraryLine.ID] = place
-                    }
-                case "googleRestaurant", "googleCafe", "googleBar", "googleActivity":
-                    print("Fetching Google Place \(itineraryLine.fsqID)")
-                    if let googleParent = try? await GooglePlaceDetailRequest(placeID: itineraryLine.fsqID).send() {
-                        let googlePlace = googleParent.result
-                        let place = googlePlace.placeify()
-                        model.itineraryLinesPlaces[itineraryLine.ID] = place
+                        itineraryLinesPlaces[itineraryLine.ID] = place
                     }
                 default:
                     if let place = try? await SinglePlaceRequest(placeID: placeID).send() {
-                        model.itineraryLinesPlaces[itineraryLine.ID] = place[0]
+                        itineraryLinesPlaces[itineraryLine.ID] = place[0]
                     }
                 }
             }
@@ -159,10 +150,15 @@ class ViewItineraryCollectionViewController: UICollectionViewController, UpdateI
         //create Snapshot - 1 section per itineraryLine. Each section contains 1 Place Item and 1 Itinerary Line Item.
         
         var itemsBySection: [ViewModel.Section:[ViewModel.Item]] = [:]
+        
+        
+        var itineraryLines = [ItineraryLine]()
+        if let itLines = itineraryLinesDict[itinerary.ID] {
+            itineraryLines = itLines
+        }
+        
         for itineraryLine in itineraryLines {
-            guard let place = model.itineraryLinesPlaces[itineraryLine.ID] else { return }
-            
-            print("itemsBySection - \(itineraryLine.ID)\(place.name)")
+            guard let place = itineraryLinesPlaces[itineraryLine.ID] else { continue }
             itemsBySection[.itineraryLine(itineraryLine, place)] = [.place(place), .itineraryLine(itineraryLine)]
         }
         let sectionIDs = itemsBySection.keys.sorted { $0 > $1 }
@@ -170,9 +166,7 @@ class ViewItineraryCollectionViewController: UICollectionViewController, UpdateI
         for sectionID in sectionIDs {
             switch sectionID {
             case .itineraryLine(_, let place):
-                self.model.placesInOrder.append(place)
-            default:
-                break
+                self.placesInOrder.append(place)
             }
         }
         
@@ -186,8 +180,6 @@ class ViewItineraryCollectionViewController: UICollectionViewController, UpdateI
         // -- ItineraryLine needs to display the Date/Time and the Custom Note
         
         let dataSource = DataSourceType(collectionView: collectionView) { (collectionView, indexPath, item) in
-            print(indexPath)
-            print(item)
             switch item {
             case .place(let place):
                 
@@ -293,7 +285,10 @@ class ViewItineraryCollectionViewController: UICollectionViewController, UpdateI
         
         guard let pic = placeBox.placePic.image, let place = place else {return nil}
         
-        return PlaceDetailCollectionViewController(coder: coder, place: place, sectionsPlaces: model.placesInOrder, placePic: pic, placeTypeID: place.placeTypeID)
+        var cityID = nil as Int?
+        if place.cityID.cityID > 0 { cityID = place.cityID.cityID }
+        
+        return PlaceDetailCollectionViewController(coder: coder, place: place, sectionsPlaces: placesInOrder, placePic: pic, placeTypeID: place.placeTypeID, cityID: cityID)
     }
     
     
@@ -308,10 +303,17 @@ class ViewItineraryCollectionViewController: UICollectionViewController, UpdateI
         //Fetch ItineraryLines to refresh the data for date/time and custom note
         itineraryRequestTask?.cancel()
         itineraryRequestTask = nil
+        
+        
+        var itineraryLines = [ItineraryLine]()
                 
         itineraryRequestTask = Task {
             if let userItineraryLines = try? await UserItineraryLinesRequest(itineraryID: itinerary.ID).send() {
+                for itineraryLine in itineraryLines {
+                    itineraryLines.append(itineraryLine)
+                }
                 itineraryLines = userItineraryLines.sorted { $0 > $1 }
+                itineraryLinesDict[itinerary.ID] = itineraryLines
                 DispatchQueue.main.async {
                     self.update()
                 }
@@ -361,8 +363,6 @@ extension ViewItineraryCollectionViewController {
 
 extension ViewItineraryCollectionViewController: ItineraryLineEditCollectionViewCellDelegate {
     func updateAfterDelete(_ itineraryLine: ItineraryLine) {
-        let itineraryLineIndex = itineraryLines.firstIndex { $0 == itineraryLine } ?? 0
-        itineraryLines.remove(at: itineraryLineIndex)
-        updateCollectionView()
+        refreshItinerary()
     }
 }

@@ -7,11 +7,11 @@
 import Foundation
 let userLovedPlacesGroup = DispatchGroup()
 let getuserGroup = DispatchGroup()
-var lovedFSQPlaces = [LovePlace]()
 var lovedPlaceDict = [String:LovePlace]()
+var recencyDict = [String:Int]()
+var fetchedFSQPlaces = [String:Place]()
 
 class UserDefaultFunctions {
-    var recencyDict = [String:Int]()
     
     
     var userLovedPlacesRequestTask: Task<Void,Never>? = nil
@@ -37,6 +37,8 @@ class UserDefaultFunctions {
     
     func getUserLovedPlaces(currentUserID: Int) {
         userLovedPlaces = []
+        recencyDict = [:]
+        lovedPlaceDict = [:]
         userLovedPlacesGroup.enter()
         userLovedPlacesRequestTask = Task {
             //Get all userPlacesLoved and set defaults
@@ -46,30 +48,11 @@ class UserDefaultFunctions {
                     UserDefaults.standard.set(true, forKey: "Concierge\(place.id)")
                 }
             }
-            if let userFSQsLoved = try? await UserFSQsLovedRequest(userID: currentUserID).send() {
-                for fsqLovePlace in userFSQsLoved {
-                    UserDefaults.standard.set(true, forKey: "fsqPlace\(fsqLovePlace.fsqID)")
-                    //currentUserPlacesLoved?.append(fsqLovePlace)
-                    
-                    if let lovedPlaces = try? await UserFSQsLovedRequest(userID: currentUserID).send() {
-                        lovedFSQPlaces = lovedPlaces
-                    }
-                }}
-            /*if let userGooglysLoved = try? await UserGooglysLovedRequest(userID: currentUserID).send() {
-                for googlyLovePlace in userGooglysLoved {
-                    UserDefaults.standard.set(true, forKey: "fsqPlace\(googlyLovePlace.fsqID)")
-                    //currentUserPlacesLoved?.append(fsqLovePlace)
-                    
-                    if let googleParent = try? await GooglePlaceDetailRequest(placeID: googlyLovePlace.fsqID).send() {
-                        let googlePlace = googleParent.result
-                        let place = googlePlace.placeify()
-                        userLovedPlaces.append(place)
-                    }
-                }}*/
+            
             if let userLovedPlaces = try? await UserLovedPlacesRequest(userID: currentUserID).send() {
                 
                 for userLovedPlace in userLovedPlaces {
-                    if userLovedPlace.fsqID == "" {
+                    if userLovedPlace.type == "Concierge" {
                         recencyDict[String(userLovedPlace.placeID)] = userLovedPlace.ID
                         lovedPlaceDict["\(userLovedPlace.placeID)"] = userLovedPlace
                     } else {
@@ -78,44 +61,51 @@ class UserDefaultFunctions {
                     }
                 }
             }
+            
+            if let userFSQsLoved = try? await UserFSQsLovedRequest(userID: currentUserID).send() {
+                for userLovedPlace in userFSQsLoved {
+                    if userLovedPlace.type == "Concierge" {
+                        recencyDict[String(userLovedPlace.placeID)] = userLovedPlace.ID
+                        lovedPlaceDict["\(userLovedPlace.placeID)"] = userLovedPlace
+                    } else {
+                        recencyDict[userLovedPlace.fsqID] = userLovedPlace.ID
+                        lovedPlaceDict[userLovedPlace.fsqID] = userLovedPlace
+                    }
+                }
+            }
+            
             sortUserPlaces()
             userLovedPlacesGroup.leave()
         }
     }
     func sortUserPlaces() {
         userLovedPlaces = userLovedPlaces.sorted(by: { lhs, rhs in
-            if let lhsRecency = recencyDict[String(lhs.id)], let rhsRecency = recencyDict[String(rhs.id)] {
-                return lhsRecency > rhsRecency
-            } else {
-                return lhs.name < rhs.name
-            }
-            /*
             switch (lhs,rhs) {
-            case (is FSQPlace, is FSQPlace):
-                if let lhsRecency = recencyDict[lhs.fsqID ?? ""], let rhsRecency = recencyDict[rhs.fsqID ?? ""] {
+            case (is ConciergePlace, is ConciergePlace):
+                if let lhsRecency = recencyDict[String(lhs.id)], let rhsRecency = recencyDict[String(rhs.id)] {
                     return lhsRecency > rhsRecency
                 } else {
                     return lhs.name < rhs.name
                 }
-            case (_, is FSQPlace):
-                if let lhsRecency = recencyDict[String(lhs.ID)], let rhsRecency = recencyDict[rhs.fsqID ?? ""] {
+            case (_, is ConciergePlace):
+                if let lhsRecency = recencyDict[lhs.fsqID ?? ""], let rhsRecency = recencyDict[String(rhs.id)] {
                     return lhsRecency > rhsRecency
                 } else {
                     return lhs.name < rhs.name
                 }
-            case (is FSQPlace, _):
-                if let lhsRecency = recencyDict[lhs.fsqID ?? ""], let rhsRecency = recencyDict[String(rhs.ID)] {
+            case (is ConciergePlace, _):
+                if let lhsRecency = recencyDict[String(lhs.id)], let rhsRecency = recencyDict[rhs.fsqID ?? ""] {
                     return lhsRecency > rhsRecency
                 } else {
                     return lhs.name < rhs.name
                 }
             default:
-                if let lhsRecency = recencyDict[String(lhs.ID)], let rhsRecency = recencyDict[String(rhs.ID)] {
+                if let lhsRecency = recencyDict[lhs.fsqID ?? ""], let rhsRecency = recencyDict[rhs.fsqID ?? ""] {
                     return lhsRecency > rhsRecency
                 } else {
                     return lhs.name < rhs.name
                 }
-            }*/
+            }
         })
     }
 }

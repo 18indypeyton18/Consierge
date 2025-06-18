@@ -25,13 +25,11 @@ class PlaceWebsiteAndDirectionsCollectionViewCell: UICollectionViewCell {
         super.awakeFromNib()
         // Enable user interaction and add gesture recognizers
         addGestureToLabel(label: placeCategoryLabel, action: #selector(categoryLabelTapped))
-        addGestureToLabel(label: placeNeighborhoodLabel, action: #selector(neighborhoodLabelTapped))
+        addGestureToLabel(label: placeNeighborhoodLabel, action: #selector(neighborhoodLabelTapped))        
     }
     
     @IBAction func websiteButtonPressed(_ sender: Any) {
-        print("Here")
         if let url = URL(string: websiteURL ?? "") {
-            print(url)
             delegate?.presentWebsite(url: url)
         }
     }
@@ -66,6 +64,9 @@ class PlaceNameCollectionViewCell: UICollectionViewCell {
     
     weak var delegate: PlaceNameCollectionViewCellDelegate?
     
+    var phNumber: String?
+    var menuURL: String?
+    
     func setupMoreOptionsButton() {
         //setup contextMenu for additionalOptions
         let share = UIAction(title:"Share", image: UIImage(systemName: "square.and.arrow.up")) { _ in
@@ -76,16 +77,35 @@ class PlaceNameCollectionViewCell: UICollectionViewCell {
             self.delegate?.addToItinerary()
         }
         
-        if currentUser.role != "Noob", isFSQ == false {
-            let proposeEdit = UIAction(title:"Propose Edit", image: UIImage(systemName: "pencil")) { _ in
-                self.delegate?.proposeEdit()
+        if currentUser.role != "Noob" {
+            var optionsMenu = [addToItinerary/*, share, proposeEdit*/]
+            
+//            let proposeEdit = UIAction(title:"Propose Edit", image: UIImage(systemName: "pencil")) { _ in
+//                self.delegate?.proposeEdit()
+//            }
+            
+            if let phoneNumber = phNumber {
+                var callTitle = "Call"
+                callTitle += " \(phoneNumber)"
+                let call = UIAction(title: callTitle,
+                  image: UIImage(systemName: "phone")) { _ in
+                    self.delegate?.call()
+                }
+                optionsMenu.append(call)
+            }
+            if let _ = menuURL {
+                let seeMenu = UIAction(title: "See Menu",
+                  image: UIImage(systemName: "menucard")) { _ in
+                    self.delegate?.seeMenu()
+                }
+                optionsMenu.append(seeMenu)
             }
             moreOptionsButton.showsMenuAsPrimaryAction = true
-            moreOptionsButton.menu = UIMenu(title: "", children: [addToItinerary, share, proposeEdit])
+            moreOptionsButton.menu = UIMenu(title: "", children: optionsMenu)
         } else {
             if currentUser.role != "GuestUser" {
                 moreOptionsButton.showsMenuAsPrimaryAction = true
-                moreOptionsButton.menu = UIMenu(title: "", children: [addToItinerary, share])
+                moreOptionsButton.menu = UIMenu(title: "", children: [addToItinerary/*, share*/])
             } else {
                 moreOptionsButton.showsMenuAsPrimaryAction = true
                 moreOptionsButton.menu = UIMenu(title: "", children: [share])
@@ -97,6 +117,8 @@ protocol PlaceNameCollectionViewCellDelegate: AnyObject {
     //Delegate function used by ACity to immediately add a new Place to the view
     func addToItinerary()
     func proposeEdit()
+    func call()
+    func seeMenu()
 }
 
 class PlaceDescriptionCollectionViewCell: UICollectionViewCell {
@@ -162,8 +184,8 @@ class PinPlaceMapViewCollectionViewCell: UICollectionViewCell {
         // Convert the address to coordinates
         let geocoder = CLGeocoder()
         geocoder.geocodeAddressString(place.address) { [weak self] (placemarks, error) in
-            if let error = error {
-                print("Geocoding error: \(error.localizedDescription)")
+            if let _ = error {
+                // print("Geocoding error: \(error.localizedDescription)")
                 return
             }
             
@@ -190,8 +212,8 @@ class PinPlaceMapViewCollectionViewCell: UICollectionViewCell {
         
         let geocoder = CLGeocoder()
         geocoder.geocodeAddressString(place.address) { (placemarks, error) in
-            if let error = error {
-                print("Geocoding error: \(error.localizedDescription)")
+            if let _ = error {
+                // print("Geocoding error: \(error.localizedDescription)")
                 return
             }
             
@@ -213,6 +235,15 @@ class PlaceTagCollectionViewCell: UICollectionViewCell {
     @IBOutlet var tagName: UILabel!
     @IBOutlet var tagNum: UILabel!
     
+    var placeTag: PlaceTag?
+    weak var delegate: PlaceTagCollectionViewCellDelegate?
+    
+    override func awakeFromNib() {
+        super.awakeFromNib()
+        style()
+        hookUpGesture()
+    }
+    
     func style() {
         self.layer.cornerRadius = 8.0 // Optional: Add corner radius for rounded corners
         self.layer.shadowColor = UIColor.darkGray.cgColor
@@ -221,6 +252,23 @@ class PlaceTagCollectionViewCell: UICollectionViewCell {
         self.layer.shadowRadius = 4.0
         self.layer.masksToBounds = false
     }
+    
+    private func hookUpGesture() {
+        tagName.isUserInteractionEnabled = true
+        let tap = UITapGestureRecognizer(
+           target: self,
+           action: #selector(tagLabelTapped)
+        )
+        tagName.addGestureRecognizer(tap)
+    }
+    
+    @objc private func tagLabelTapped() {
+        delegate?.placeTagCellDidTapTag(placeTag: placeTag)
+    }
+}
+protocol PlaceTagCollectionViewCellDelegate: AnyObject {
+    /// Called when the user taps the tag label
+    func placeTagCellDidTapTag(placeTag: PlaceTag?)
 }
 
 class AddTagCollectionViewCell: UICollectionViewCell {
@@ -260,4 +308,80 @@ class ReviewTextViewCollectionViewCell: UICollectionViewCell {
         self.layer.borderColor = UIColor.systemGray4.cgColor
     }
 }
+
+
+
+class PlaceAuthorAndLovesCollectionViewCell: UICollectionViewCell {
+    
+    weak var delegate: PlaceAuthorAndLovesCellDelegate?
+    
+    @IBOutlet var profPic: UIImageView!
+    @IBOutlet var usernameLabel: UILabel!
+    @IBOutlet var lovesLabel: UILabel!
+    @IBOutlet var separatorBar: UIView!
+    
+    
+    var imageRequestTask: Task<Void,Never>? = nil
+    deinit {
+        imageRequestTask?.cancel()
+    }
+    
+    override func awakeFromNib() {
+        super.awakeFromNib()
+        // Enable user interaction on the image view
+        profPic.isUserInteractionEnabled = true
+        // Add tap gesture recognizer to the image view
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(profPicTapped))
+        profPic.addGestureRecognizer(tapGesture)
+        addGestureToLabel(label: usernameLabel, action: #selector(authorLabelTapped))
+        addGestureToLabel(label: lovesLabel, action: #selector(communityLovesClicked))
+    }
+    
+    @objc func profPicTapped() {
+        delegate?.updateProfPicClicked()
+    }
+    
+    func addGestureToLabel(label: UILabel, action: Selector) {
+        label.isUserInteractionEnabled = true
+        let tapGesture = UITapGestureRecognizer(target: self, action: action)
+        label.addGestureRecognizer(tapGesture)
+    }
+    
+    @objc func authorLabelTapped() {
+        delegate?.authorLabelClicked() // Trigger delegate method
+    }
+    
+    @objc func communityLovesClicked() {
+        delegate?.communityLovesClicked() // Trigger delegate method
+    }
+    
+    func fetchUserProfPicImage(profPicURL: String?) {
+        profPic.layer.cornerRadius = 15
+        profPic.clipsToBounds = true
+        
+        guard let profPicURL = profPicURL, profPicURL != "" else {
+            let colors: [UIColor] = [.red, .blue, .green, .orange, .gray, .darkGray]
+            DispatchQueue.main.async {
+                self.profPic.image = UIImage(systemName: "person.circle")
+                self.profPic.tintColor = colors.randomElement()
+            }
+            return
+        }
+        
+        imageRequestTask = Task {
+            if let image = try? await ImageRequest(path: profPicURL).send() {
+                DispatchQueue.main.async {
+                    self.profPic.image = image
+                }
+            }
+            self.imageRequestTask = nil
+        }
+    }
+}
+protocol PlaceAuthorAndLovesCellDelegate: AnyObject {
+    func updateProfPicClicked()
+    func authorLabelClicked()
+    func communityLovesClicked()
+}
+
 

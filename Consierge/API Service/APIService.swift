@@ -83,6 +83,19 @@ struct UserResetPWRequest: APIRequest {
     }
 }
 
+struct DeleteAccountRequest: APIRequest {
+    typealias Response = [String: String]
+    typealias IsImage  = Void
+
+    let userID: String
+
+    var path: String { "/Consierge/deleteAccount.php" }
+
+    var postData: Data? {
+        try? JSONEncoder().encode(["userID": userID])
+    }
+}
+
 //return all cities in the DB
 struct CityRequest: APIRequest {
     typealias Response = [City]
@@ -91,8 +104,9 @@ struct CityRequest: APIRequest {
     var path: String { "/Consierge/cities.php" }
 }
 
+
 //Get image from the server for a specified Image URL
-struct ImageRequest: APIRequest {
+struct ImageRequest: ImageAPIRequest {
     typealias Response = UIImage
     typealias IsImage =  Void
         
@@ -273,6 +287,76 @@ struct AddTagRequest: APIRequest {
     }
 }
 
+struct ApproveTagRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var approveTag: ApproveTag
+    
+    var path: String { "/Consierge/approveTag.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(approveTag)
+    }
+}
+
+struct UpdateCommentStatus: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var commentStatus: CommentStatus
+    
+    var path: String { "/Consierge/updateCommentStatus.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(commentStatus)
+    }
+}
+
+struct UpdatePlaceStatus: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var placeStatus: PlaceStatus
+    
+    var path: String { "/Consierge/updatePlaceStatus.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(placeStatus)
+    }
+}
+
+struct UpdatePlaceCoverStatus: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var placeStatus: PlaceStatus
+    
+    var path: String { "/Consierge/updatePlaceCoverStatus.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(placeStatus)
+    }
+}
+
+struct UpdateCityImgURL: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var cityImgUpdate: CityImgUpdate
+    
+    var path: String { "/Consierge/updateCityImgURL.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(cityImgUpdate)
+    }
+}
+
 struct PlaceTagsRequest: APIRequest {
     typealias Response = [PlaceTag]
     typealias IsImage =  Void
@@ -295,12 +379,13 @@ struct CityTagsRequest: APIRequest {
     typealias IsImage =  Void
     
     var cityID: Int?
+    var placeTypeID: Int?
     
     var path: String { "/Consierge/cityTags.php" }
     
     var queryItems: [URLQueryItem]? {
-        if let cityID = cityID {
-            return [URLQueryItem(name: "cityID", value: String(cityID))]
+        if let cityID = cityID, let placeTypeID = placeTypeID {
+            return [URLQueryItem(name: "cityID", value: String(cityID)), URLQueryItem(name: "placeTypeID", value: String(placeTypeID))]
         } else {
             return nil
         }
@@ -393,6 +478,19 @@ struct GenreClickedRequest: APIRequest {
     
     var queryItems: [URLQueryItem]? {
         return [URLQueryItem(name: "genreID", value: String(genreID))]
+    }
+}
+
+struct TagClickedRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var tagName: String
+    
+    var path: String { "/Consierge/incrementTagClicks.php" }
+    
+    var queryItems: [URLQueryItem]? {
+        return [URLQueryItem(name: "tagName", value: String(tagName))]
     }
 }
 
@@ -752,6 +850,48 @@ struct NewPlaceRequest: APIRequest {
     }
 }
 
+struct PlaceExistsRequest: APIRequest {
+    typealias Response = [ConciergePlace]
+    typealias IsImage =  Void
+    
+    var placeName: String
+    var address: String
+    
+    var path: String { "/Consierge/placeExists.php" }
+
+    var queryItems: [URLQueryItem]? {
+        return [URLQueryItem(name: "placeName", value: placeName), URLQueryItem(name: "address", value: address)]
+    }
+}
+
+//review all restaurants in the DB
+struct GetCityRequest: APIRequest {
+    typealias Response = City
+    typealias IsImage =  Void
+    
+    var cityID: Int
+    
+    var path: String { "/Consierge/getCity.php" }
+    
+    var queryItems: [URLQueryItem]? {
+        return [URLQueryItem(name: "cityID", value: String(cityID))]
+    }
+}
+
+//review all restaurants in the DB
+struct GetPlaceTypeRequest: APIRequest {
+    typealias Response = PlaceType
+    typealias IsImage =  Void
+    
+    var placeTypeID: Int
+    
+    var path: String { "/Consierge/getPlaceType.php" }
+    
+    var queryItems: [URLQueryItem]? {
+        return [URLQueryItem(name: "placeTypeID", value: String(placeTypeID))]
+    }
+}
+
 
 // MARK: Image Requests
 
@@ -762,7 +902,7 @@ struct NewImageRequest: APIRequest {
     
     var imageUpload: ImageUpload
     
-    var path: String { "/Consierge/newImage.php" }
+    var path: String { "/Consierge/newImageToS3.php" }
     
     var postData: Data? {
         var body = Data()
@@ -805,6 +945,81 @@ struct UpdateUserProfPicRequest: APIRequest {
     var postData: Data? {
         let encoder = JSONEncoder()
         return try! encoder.encode(profilePic)
+    }
+}
+
+struct DeleteItineraryRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var itinerary: Itinerary
+    
+    var path: String { "/Consierge/deleteItinerary.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(itinerary)
+    }
+}
+
+struct PlacesAuthoredNumRequest: APIRequest {
+    typealias Response = Int
+    typealias IsImage =  Void
+    
+    var userID: Int?
+    
+    var path: String { "/Consierge/getPlacesAuthoredNum.php" }
+    
+    var queryItems: [URLQueryItem]? {
+        if let userID = userID {
+            return [URLQueryItem(name: "userID", value: String(userID))]
+        } else {
+            return nil
+        }
+    }
+}
+
+struct PlacesAuthoredRequest: APIRequest {
+    typealias Response = [ConciergePlace]
+    typealias IsImage =  Void
+    
+    var userID: Int?
+    
+    var path: String { "/Consierge/getPlacesAuthored.php" }
+    
+    var queryItems: [URLQueryItem]? {
+        if let userID = userID {
+            return [URLQueryItem(name: "userID", value: String(userID))]
+        } else {
+            return nil
+        }
+    }
+}
+
+//get all restaurants a specified user has loved from the DB
+struct CommunityLovesUsersRequest: APIRequest {
+    typealias Response = [User]
+    typealias IsImage =  Void
+    
+    var placeID: Int
+    
+    var path: String { "/Consierge/communityLovesUsers.php" }
+    
+    var queryItems: [URLQueryItem]? {
+        return [URLQueryItem(name: "placeID", value: String(placeID))]
+    }
+}
+//get all cafes a specified user has loved from the DB
+struct CommunityLovesPlacesRequest: APIRequest {
+    typealias Response = [LovePlace]
+    typealias IsImage =  Void
+    
+    var placeID: Int
+    
+    var path: String { "/Consierge/communityLovesPlaces.php" }
+    
+    var queryItems: [URLQueryItem]? {
+        return [URLQueryItem(name: "placeID", value: String(placeID))]
     }
 }
 
@@ -902,6 +1117,48 @@ struct ApproveAdditionalPhotoRequest: APIRequest {
     }
 }
 
+struct GetCommentsToReviewRequest: APIRequest {
+    typealias Response = [Comment]
+    typealias IsImage =  Void
+    
+    var path: String { "/Consierge/commentsToReview.php" }
+}
+
+struct ApproveCommentRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var comment: Comment
+    
+    var path: String { "/Consierge/approveComment.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(comment)
+    }
+}
+
+struct GetTagsToReviewRequest: APIRequest {
+    typealias Response = [ReviewTag]
+    typealias IsImage =  Void
+    
+    var path: String { "/Consierge/tagsToReview.php" }
+}
+
+struct ApprovePlaceTagRequest: APIRequest {
+    typealias Response = Dictionary<String, String>
+    typealias IsImage =  Void
+    
+    var tag: ReviewTag
+    
+    var path: String { "/Consierge/approvePlaceTag.php" }
+    
+    var postData: Data? {
+        let encoder = JSONEncoder()
+        return try! encoder.encode(tag)
+    }
+}
+
 
 // MARK: FSQ Requests
 
@@ -958,6 +1215,21 @@ struct FSQQueryRequest: FSQAPIRequest {
         return [URLQueryItem(name: "ll", value: ll), URLQueryItem(name: "query", value: query), URLQueryItem(name: "radius", value: String(radius)), URLQueryItem(name: "exclude_all_chains", value: String(false)), URLQueryItem(name: "fields", value: "fsq_id,name,description,photos,categories,location,website,price,geocodes,rating,popularity"), URLQueryItem(name: "sort", value: sort), URLQueryItem(name: "limit", value: String(limit))]
     }
 }
+
+struct FSQExactPlaceRequest: FSQAPIRequest {
+    typealias Response = FSQDecoderParent
+    typealias IsImage =  Void
+    
+    var query: String
+    var near: String
+    
+    var path: String { "/v3/places/search" }
+    
+    var queryItems: [URLQueryItem]? {
+        return [URLQueryItem(name: "near", value: near), URLQueryItem(name: "query", value: query), URLQueryItem(name: "exclude_all_chains", value: String(false)), URLQueryItem(name: "fields", value: "fsq_id,name,description,photos,categories,location,website,price,geocodes,rating,popularity"), URLQueryItem(name: "sort", value: "RELEVANCE"), URLQueryItem(name: "limit", value: "1")]
+    }
+}
+
 struct getFSQPlaceRequest: FSQAPIRequest {
     typealias Response = FSQDecoder
     typealias IsImage =  Void
@@ -973,54 +1245,97 @@ struct getFSQPlaceRequest: FSQAPIRequest {
 
 
 
+//struct GoogleFindCandidatePlacesRequest: GooglePlacesAPIRequest {
+//    typealias Response = GoogleCandidatePlacesDecoder
+//    typealias IsImage =  Void
+//    
+//    var textQuery: String
+//    var location: String
+//    
+//    var path: String { "/maps/api/place/textsearch/json" }
+//    
+//    var queryItems: [URLQueryItem]? {
+//        return [URLQueryItem(name: "query", value: textQuery), URLQueryItem(name: "radius", value: "100000"), URLQueryItem(name: "location", value: location), URLQueryItem(name: "key", value: googlyKey)]
+//    }
+//}
+//struct GoogleFindPlaceRequest: GooglePlacesAPIRequest {
+//    typealias Response = GooglePlaceFindDecoder
+//    typealias IsImage =  Void
+//    
+//    var textQuery: String
+//    
+//    var path: String { "/maps/api/place/findplacefromtext/json" }
+//    
+//    var queryItems: [URLQueryItem]? {
+//        return [URLQueryItem(name: "input", value: textQuery), URLQueryItem(name: "inputtype", value: "textquery"), URLQueryItem(name: "key", value: googlyKey)]
+//    }
+//}
+//struct GooglePlaceDetailRequest: GooglePlacesAPIRequest {
+//    typealias Response = GooglePlaceDecoderParent
+//    typealias IsImage =  Void
+//    
+//    var placeID: String
+//    
+//    var path: String { "/maps/api/place/details/json" }
+//    
+//    var queryItems: [URLQueryItem]? {
+//        return [URLQueryItem(name: "place_id", value: placeID), URLQueryItem(name: "key", value: googlyKey)]
+//    }
+//}
+//struct GooglePlacePhotoRequest: GooglePlacesAPIRequest {
+//    typealias Response = UIImage
+//    typealias IsImage =  Void
+//    
+//    var photo_reference: String
+//    
+//    var path: String { "/maps/api/place/photo" }
+//    
+//    var queryItems: [URLQueryItem]? {
+//        return [URLQueryItem(name: "photo_reference", value: photo_reference), URLQueryItem(name: "key", value: googlyKey), URLQueryItem(name: "maxheight", value: String(100000)), URLQueryItem(name: "maxwidth", value: String(100000))]
+//    }
+//}
 
-public var googlyKey = "AIzaSyCtsKYOe5RHp72eGTVgNff5TE_CziXs0E4"
-struct GoogleFindCandidatePlacesRequest: GooglePlacesAPIRequest {
-    typealias Response = GoogleCandidatePlacesDecoder
-    typealias IsImage =  Void
-    
-    var textQuery: String
-    var location: String
-    
-    var path: String { "/maps/api/place/textsearch/json" }
-    
-    var queryItems: [URLQueryItem]? {
-        return [URLQueryItem(name: "query", value: textQuery), URLQueryItem(name: "radius", value: "100000"), URLQueryItem(name: "location", value: location), URLQueryItem(name: "key", value: googlyKey)]
+struct ChatGPTCompletionRequest: OpenAIAPIRequest {
+    struct Response: Decodable {
+        struct Choice: Decodable {
+            struct Message: Decodable {
+                let role: String
+                let content: String
+            }
+            let message: Message
+        }
+        let choices: [Choice]
+    }
+
+    var model: String
+    var systemPrompt: String
+    var prompts: [String]  // Updated to accept an array of prompts
+    var maxTokens: Int
+    var temperature: Double
+    var username: String
+
+    var path: String { "/v1/chat/completions" }
+    var queryItems: [URLQueryItem]? { nil }
+
+    var body: Data? {
+        // Construct the messages array
+        var messages: [[String: String]] = [
+            ["role": "system", "content": systemPrompt],
+            ["role": "system", "content": "username: \(username)"]
+        ]
+        
+        // Append each user prompt to the messages
+        for prompt in prompts {
+            messages.append(["role": "user", "content": prompt])
+        }
+        
+        let parameters: [String: Any] = [
+            "model": model,
+            "messages": messages,
+            "max_tokens": maxTokens,
+            "temperature": temperature
+        ]
+        return try? JSONSerialization.data(withJSONObject: parameters)
     }
 }
-struct GoogleFindPlaceRequest: GooglePlacesAPIRequest {
-    typealias Response = GooglePlaceFindDecoder
-    typealias IsImage =  Void
-    
-    var textQuery: String
-    
-    var path: String { "/maps/api/place/findplacefromtext/json" }
-    
-    var queryItems: [URLQueryItem]? {
-        return [URLQueryItem(name: "input", value: textQuery), URLQueryItem(name: "inputtype", value: "textquery"), URLQueryItem(name: "key", value: googlyKey)]
-    }
-}
-struct GooglePlaceDetailRequest: GooglePlacesAPIRequest {
-    typealias Response = GooglePlaceDecoderParent
-    typealias IsImage =  Void
-    
-    var placeID: String
-    
-    var path: String { "/maps/api/place/details/json" }
-    
-    var queryItems: [URLQueryItem]? {
-        return [URLQueryItem(name: "place_id", value: placeID), URLQueryItem(name: "key", value: googlyKey)]
-    }
-}
-struct GooglePlacePhotoRequest: GooglePlacesAPIRequest {
-    typealias Response = UIImage
-    typealias IsImage =  Void
-    
-    var photo_reference: String
-    
-    var path: String { "/maps/api/place/photo" }
-    
-    var queryItems: [URLQueryItem]? {
-        return [URLQueryItem(name: "photo_reference", value: photo_reference), URLQueryItem(name: "key", value: googlyKey), URLQueryItem(name: "maxheight", value: String(100000)), URLQueryItem(name: "maxwidth", value: String(100000))]
-    }
-}
+

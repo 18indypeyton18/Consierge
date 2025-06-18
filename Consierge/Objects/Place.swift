@@ -48,8 +48,14 @@ final class ConciergePlace: Codable, Place {
     var version: Int = 1
     var status: String?
     var placeTypeID: Int?
+    var authorId: Int?
+    var authorName: String?
+    var authorProfPic: String?
+    var phoneNumber: String?
+    var menuURL: String?
+    var coverStatus: String?
     
-    init(id: Int, name: String, descr: String?, genre: String, neighborhood: String, isLocal: Bool, cityID: City, communityVotes: Int, imageURL: String, website: String, address: String, price: Int, latitude: Double, longitude: Double, fsqID: String?, specialCategory: String?, version: Int, status: String?, placeTypeID: Int?) {
+    init(id: Int, name: String, descr: String?, genre: String, neighborhood: String, isLocal: Bool, cityID: City, communityVotes: Int, imageURL: String, website: String, address: String, price: Int, latitude: Double, longitude: Double, fsqID: String?, specialCategory: String?, version: Int, status: String?, placeTypeID: Int?, authorId: Int?, authorName: String?, authorProfPic: String?, phoneNumber: String?, menuURL: String?, coverStatus: String?) {
         self.id = id
         self.name = name
         self.descr = descr
@@ -69,12 +75,18 @@ final class ConciergePlace: Codable, Place {
         self.version = version
         self.status = status
         self.placeTypeID = placeTypeID
+        self.authorId = authorId
+        self.authorName = authorName
+        self.authorProfPic = authorProfPic
+        self.phoneNumber = phoneNumber
+        self.menuURL = menuURL
+        self.coverStatus = coverStatus
     }
 }
 
 extension ConciergePlace: CustomStringConvertible {
     var description: String {
-        return "{'id': '\(id)', 'name': '\(name)', 'desc': '\(descr ?? "")', 'genre': '\(genre)', 'neighborhood': '\(neighborhood)', 'isLocal': '\(isLocal)', 'cityID': '\(cityID)', 'communityVotes': '\(communityVotes)', 'imageURL': '\(imageURL)', 'website': '\(website)', 'address': '\(address)', 'price': '\(price)', 'latitude': '\(latitude)', 'longitude': '\(longitude)', 'fsqID': '\(fsqID ?? "")', 'specialCategory': '\(specialCategory ?? ""), 'version': '\(version), 'status': '\(status ?? ""), 'placeTypeID': '\(placeTypeID)'}"
+        return "{'id': '\(id)', 'name': '\(name)', 'desc': '\(descr ?? "")', 'genre': '\(genre)', 'neighborhood': '\(neighborhood)', 'isLocal': '\(isLocal)', 'cityID': '\(cityID)', 'communityVotes': '\(communityVotes)', 'imageURL': '\(imageURL)', 'website': '\(website)', 'address': '\(address)', 'price': '\(price)', 'latitude': '\(latitude)', 'longitude': '\(longitude)', 'fsqID': '\(fsqID ?? "")', 'specialCategory': '\(specialCategory ?? ""), 'version': '\(version), 'status': '\(status ?? ""), 'placeTypeID': '\(placeTypeID ?? 0)'}"
     }
 }
 
@@ -90,7 +102,6 @@ extension ConciergePlace: Hashable {
     }
     
     static func ==(lhs: ConciergePlace, rhs: ConciergePlace) -> Bool {
-        print("LHS PLACE == RHS Place", lhs.id, rhs.id)
         return lhs.id == rhs.id
     }
 }

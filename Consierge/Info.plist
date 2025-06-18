@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos of places to upload along with details on that place</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Identify points of interest and cool places near a user&apos;s location</string>
 	<key>CFBundleURLTypes</key>

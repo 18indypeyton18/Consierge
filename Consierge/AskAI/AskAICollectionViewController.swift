@@ -3,6 +3,8 @@ import UIKit
 import CoreLocation
 import SafariServices
 
+var askAISuggestedPrompts = [String]()
+
 class AskAICollectionViewController: UICollectionViewController {
     
     typealias DataSourceType = UICollectionViewDiffableDataSource<ViewModel.Section, ViewModel.Item>
@@ -12,39 +14,43 @@ class AskAICollectionViewController: UICollectionViewController {
         //Various sections after that setup to contain Place collectionViewCells seperated by Place neighborhood and Place genre
         enum Section: Hashable {
             case gptPrompts
-            case gptGooglePlace
+            case gptFSQPlace
             case gptNotFoundPlace
             case gptLoading
             case askAIInput
             case gptClear
+            case pbFSQ
         }
         enum Item: Hashable {
             case gptPrompt(prompt: String)
-            case gptGooglePlace(place: Place)
+            case gptFSQPlace(place: Place)
             case gptNotFoundPlace(place: GPTPlace)
-            case gptLoading(gptPlaces: Int, googlePlaces: Int)
+            case gptLoading(gptPlaces: Int, fsqPlaces: Int)
             case askAIInput
             case gptClear
+            case pbFSQ
             
             func hash(into hasher: inout Hasher) {
                 switch self {
                 case .gptPrompt(let prompt):
                     hasher.combine(prompt)
-                case .gptGooglePlace(let place):
+                case .gptFSQPlace(let place):
                     hasher.combine("\(place.name)\(place.id)\(place.fsqID ?? "")")
                 case .gptNotFoundPlace(let place):
                     hasher.combine("\(place.name)\(place.address)")
-                case .gptLoading(let gptPlaces, let googlePlaces):
-                    hasher.combine("GPTLoading\(gptPlaces)\(googlePlaces)")
+                case .gptLoading(let gptPlaces, let fsqPlaces):
+                    hasher.combine("GPTLoading\(gptPlaces)\(fsqPlaces)")
                 case .askAIInput:
                     hasher.combine("askAIInput")
                 case .gptClear:
                     hasher.combine("GPTClear")
+                case .pbFSQ:
+                    hasher.combine("pbFSQ")
                 }
             }
             static func == (lhs: AskAICollectionViewController.ViewModel.Item, rhs: AskAICollectionViewController.ViewModel.Item) -> Bool {
                 switch (lhs, rhs){
-                case (.gptGooglePlace(let lhs), .gptGooglePlace(let rhs)):
+                case (.gptFSQPlace(let lhs), .gptFSQPlace(let rhs)):
                     return "\(lhs.name)\(lhs.id)" == "\(rhs.name)\(rhs.id)"
                 default:
                     return false
@@ -64,6 +70,10 @@ class AskAICollectionViewController: UICollectionViewController {
         let locationManager = CLLocationManager()
         
         var cityCenter: CLLocationCoordinate2D?
+        
+        var isUserTyping: Bool = false
+        
+        var itinerarySelectedPlace: Place?
     }
     struct GPTModel {
         enum AskAIMode {
@@ -75,9 +85,11 @@ class AskAICollectionViewController: UICollectionViewController {
         var suggestedPrompts = [String]()
         
         var lastestUserPrompt: String?
+        var userPrompts = [String]()
         
         var gptPlaces = [GPTPlace]()
-        var gptGooglePlaces = [GooglePlace]()
+//        var gptGooglePlaces = [GooglePlace]()
+        var gptFSQPlaces = [FSQPlace]()
         var gptNotFoundPlaces = [GPTPlace]()
         
         let colors: [UIColor] = [
@@ -94,7 +106,7 @@ class AskAICollectionViewController: UICollectionViewController {
         ]
         var selectedColor: UIColor?
         
-        var googlyIDs: [String] = []
+        var fsqIDs: [String] = []
     }
     
     var dataSource: DataSourceType!
@@ -104,16 +116,18 @@ class AskAICollectionViewController: UICollectionViewController {
     // Add a state flag or token
     private var apiRequestToken = UUID()
     
+    @IBOutlet var mapBarButton: UIBarButtonItem!
     
-    var googlePlacesRequestTask: Task<Void,Never>? = nil
+    var fsqPlacesRequestTask: Task<Void,Never>? = nil
     var openAIRequestTask: Task<Void, Never>? = nil
     deinit {
-        googlePlacesRequestTask?.cancel()
         openAIRequestTask?.cancel()
+        fsqPlacesRequestTask?.cancel()
     }
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        gptModel.suggestedPrompts = askAISuggestedPrompts
         
         setupPage()
         collectionView.collectionViewLayout = createLayout()
@@ -123,17 +137,14 @@ class AskAICollectionViewController: UICollectionViewController {
     }
     
     func setupPage() {
-        
         collectionView.register(AskAIInputCollectionViewCell.self, forCellWithReuseIdentifier: "AskAIInput")
         getUserLoc()
         update()
-    }
-    
-    func resetView() {
-        gptModel.suggestedPrompts = []
-        gptModel.gptPlaces = []
-        gptModel.gptGooglePlaces = []
-        gptModel.askAIMode = .suggestingPrompts
+        
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTapGesture))
+        tap.cancelsTouchesInView = false
+        tap.delegate = self // Set the delegate
+        view.addGestureRecognizer(tap)
     }
     
     func update() {
@@ -146,6 +157,14 @@ class AskAICollectionViewController: UICollectionViewController {
             case .askAIInput:
                 let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "AskAIInput", for: indexPath) as! AskAIInputCollectionViewCell
                 cell.delegate = self
+                
+                switch self.gptModel.askAIMode {
+                case .displayingPlaces:
+                    cell.placeholderLabel.text = "Refine Search"
+                default:
+                    cell.placeholderLabel.text = "Ask AI"
+                }
+                
                 return cell
                 
             case .gptPrompt(let prompt):
@@ -154,7 +173,7 @@ class AskAICollectionViewController: UICollectionViewController {
                 cell.prompt = prompt
                 cell.promptLabel.text = prompt
                 
-                let colors: [UIColor] = [
+                let _: [UIColor] = [
                         UIColor(red: 1.0, green: 0.9, blue: 0.9, alpha: 1.0), // light red
                         UIColor(red: 0.9, green: 1.0, blue: 0.9, alpha: 1.0), // light green
                         UIColor(red: 0.9, green: 0.9, blue: 1.0, alpha: 1.0), // light blue
@@ -173,7 +192,7 @@ class AskAICollectionViewController: UICollectionViewController {
                 cell.styleCell(color: selectedColor)
                 
                 return cell
-            case .gptGooglePlace(let place):
+            case .gptFSQPlace(let place):
                 let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "GPTPlace", for: indexPath) as! GPTPlaceCollectionViewCell
                 //Place object stored in each instance of ViewModel.Item and can be used to configure the cell
                 cell.place = place
@@ -194,16 +213,9 @@ class AskAICollectionViewController: UICollectionViewController {
                 cell.neiCatLabel.text = "\(place.neighborhood) - \(place.genre)"
                 let (distance, fromWho) = self.distanceFromYou(place: place)
                 cell.milesFromUserLabel.text = "\(String(format: "%.2f", distance)) miles from \(fromWho)"
-                if let place = place as? ConciergePlace {
-                    cell.communityLovesLabel.text = "\(place.communityVotes) Community Loves"
-                } else if let place = place as? FSQPlace {
+                
+                if let place = place as? FSQPlace {
                     cell.communityLovesLabel.text = "Rating - \(place.rating ?? 0) / Popularity - \(place.popularity ?? 0)"
-                } else if let place = place as? GooglePlace {
-                    if let rating = place.rating {
-                        cell.communityLovesLabel.text = "Rating - \(String(format: "%.2f", rating))"
-                    } else {
-                        cell.communityLovesLabel.text = "No Rating"
-                    }
                 }
                 
                 cell.delegate = self
@@ -223,7 +235,7 @@ class AskAICollectionViewController: UICollectionViewController {
                 
                 //return cell for each item
                 return cell
-            case .gptLoading(let gptPlaces, let googlePlaces):
+            case .gptLoading(let gptPlaces, let fsqPlaces):
                 let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "GPTLoading", for: indexPath) as! GPTLoadingCollectionViewCell
                 if !cell.activityIndicator.isAnimating {
                     cell.activityIndicator.startAnimating()
@@ -231,16 +243,19 @@ class AskAICollectionViewController: UICollectionViewController {
                 
                 if gptPlaces == 0 {
                     cell.gptPlacesLoadedLabel.text = self.gptModel.lastestUserPrompt ?? ""
-                    cell.googlePlacesLoadedLabel.text = ""
+                    cell.fsqPlacesLoadedLabel.text = ""
                 } else {
                     cell.gptPlacesLoadedLabel.text = "ChatGPT replied with \(gptPlaces) places"
-                    cell.googlePlacesLoadedLabel.text = "Google Maps Platform replied with \(googlePlaces) places"
+                    cell.fsqPlacesLoadedLabel.text = "Foursquare replied with \(fsqPlaces) places"
                 }
                 return cell
             case .gptClear:
                 let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "GPTClear", for: indexPath) as! GPTClearCollectionViewCell
                 cell.delegate = self
                 
+                return cell
+            case .pbFSQ:
+                let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "poweredByFSQ", for: indexPath)
                 return cell
             }
         }
@@ -263,18 +278,18 @@ class AskAICollectionViewController: UICollectionViewController {
                 return sectionLayout
                 
             case .gptPrompts:
-                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(60))
+                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(70))
                 let item = NSCollectionLayoutItem(layoutSize: itemSize)
                 item.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 5, bottom: 6, trailing: 5)
                 
-                let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(60))
+                let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(70))
                 let group = NSCollectionLayoutGroup.vertical(layoutSize: groupSize, subitems: [item])
                 
                 let section = NSCollectionLayoutSection(group: group)
                 section.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10)
                 
                 return section
-            case .gptGooglePlace:
+            case .gptFSQPlace:
                 let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(125))
                 let item = NSCollectionLayoutItem(layoutSize: itemSize)
                 item.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 10, bottom: 0, trailing: 10)
@@ -305,8 +320,8 @@ class AskAICollectionViewController: UICollectionViewController {
                 let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.96), heightDimension: .absolute(150))
                 let item = NSCollectionLayoutItem(layoutSize: itemSize)
                 
-                var groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(150))
-                var group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item])
+                let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(150))
+                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item])
                 
                 let section = NSCollectionLayoutSection(group: group)
                 section.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 4, bottom: 8, trailing: 4)
@@ -328,6 +343,17 @@ class AskAICollectionViewController: UICollectionViewController {
                 }
                 
                 return section
+            case .pbFSQ:
+                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.96), heightDimension: .absolute(40))
+                let item = NSCollectionLayoutItem(layoutSize: itemSize)
+                
+                let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(40))
+                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item])
+                
+                let section = NSCollectionLayoutSection(group: group)
+                section.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0)
+                
+                return section
             }
         }
         return layout
@@ -344,6 +370,8 @@ class AskAICollectionViewController: UICollectionViewController {
             model.model = itemsBySection
             self.dataSource.applySnapshotUsing(sectionIDs: self.model.sections, itemsBySection: itemsBySection)
         }
+        
+        shouldMapEnabled()
     }
     
     func createItemsBySection() -> [ViewModel.Section:[ViewModel.Item]]? {
@@ -384,15 +412,15 @@ class AskAICollectionViewController: UICollectionViewController {
             itemsBySection[.gptClear] = [.gptClear]
             model.sectionRanks[.gptClear] = 1500
             
-            itemsBySection[.gptLoading] = [.gptLoading(gptPlaces: gptModel.gptPlaces.count, googlePlaces: gptModel.gptGooglePlaces.count)]
+            itemsBySection[.gptLoading] = [.gptLoading(gptPlaces: gptModel.gptPlaces.count, fsqPlaces: gptModel.gptFSQPlaces.count)]
             model.sectionRanks[.gptLoading] = 1000
             
             var placeItems: [ViewModel.Item] = []
-            for place in gptModel.gptGooglePlaces {
-                placeItems.append(.gptGooglePlace(place: place))
+            for place in gptModel.gptFSQPlaces {
+                placeItems.append(.gptFSQPlace(place: place))
             }
-            itemsBySection[.gptGooglePlace] = placeItems
-            model.sectionRanks[.gptGooglePlace] = 100
+            itemsBySection[.gptFSQPlace] = placeItems
+            model.sectionRanks[.gptFSQPlace] = 100
         case .displayingPlaces:
             itemsBySection[.askAIInput] = [.askAIInput]
             model.sectionRanks[.askAIInput] = 10000
@@ -400,20 +428,24 @@ class AskAICollectionViewController: UICollectionViewController {
             itemsBySection[.gptClear] = [.gptClear]
             model.sectionRanks[.gptClear] = 1500
             
+            if gptModel.gptFSQPlaces.count > 0 {
+                itemsBySection[.pbFSQ] = [.pbFSQ]
+                model.sectionRanks[.pbFSQ] = 1250
+            }
+            
             var placeItems: [ViewModel.Item] = []
-            for place in gptModel.gptGooglePlaces {
-                placeItems.append(.gptGooglePlace(place: place))
+            for place in gptModel.gptFSQPlaces {
+                placeItems.append(.gptFSQPlace(place: place))
             }
             
             var notFoundPlaceItems: [ViewModel.Item] = []
             for place in gptModel.gptNotFoundPlaces {
-                print("Not Found Place", place.name)
                 notFoundPlaceItems.append(.gptNotFoundPlace(place: place))
             }
             
-            itemsBySection[.gptGooglePlace] = placeItems
+            itemsBySection[.gptFSQPlace] = placeItems
             itemsBySection[.gptNotFoundPlace] = notFoundPlaceItems
-            model.sectionRanks[.gptGooglePlace] = 100
+            model.sectionRanks[.gptFSQPlace] = 100
             model.sectionRanks[.gptNotFoundPlace] = 10
         }
         
@@ -425,14 +457,15 @@ class AskAICollectionViewController: UICollectionViewController {
         apiRequestToken = UUID()
         
         gptModel.suggestedPrompts = []
+        gptModel.userPrompts = []
         gptModel.gptPlaces = []
-        gptModel.gptGooglePlaces = []
+        gptModel.gptFSQPlaces = []
         gptModel.gptNotFoundPlaces = []
         
         openAIRequestTask?.cancel()
         openAIRequestTask = nil
-        googlePlacesRequestTask?.cancel()
-        googlePlacesRequestTask = nil
+        fsqPlacesRequestTask?.cancel()
+        fsqPlacesRequestTask = nil
         
         getSuggestedGPTPrompts()
         gptModel.askAIMode = .suggestingPrompts
@@ -442,8 +475,23 @@ class AskAICollectionViewController: UICollectionViewController {
         
         if segue.identifier == "ViewMapFromAskAI" {
             let mapViewController = segue.destination as! MapViewController
-            mapViewController.places = gptModel.gptGooglePlaces
+            mapViewController.places = gptModel.gptFSQPlaces
             mapViewController.gptPlaces = gptModel.gptNotFoundPlaces
+        } else if segue.identifier == "AddToItinerary" {
+            guard let navController = segue.destination as? UINavigationController else { return }
+            guard let tableController = navController.topViewController as? AddToItineraryTableViewController  else { return }
+            guard let place = model.itinerarySelectedPlace else { return }
+            var isFSQPlace = false
+            var type = "Concierge"
+            if let _ = place as? FSQPlace {
+                isFSQPlace = true
+                type = "FSQ"
+            }
+            tableController.place = place
+            tableController.cityID = place.cityID
+            tableController.isFSQPlace = isFSQPlace
+            
+            tableController.type = type
         }
     }
     
@@ -459,7 +507,7 @@ class AskAICollectionViewController: UICollectionViewController {
         
         items.forEach({ item in
             switch item {
-            case .gptGooglePlace(let place):
+            case .gptFSQPlace(let place):
                 places.append(place)
             default:
                 break
@@ -467,7 +515,7 @@ class AskAICollectionViewController: UICollectionViewController {
         })
         
         //return DetailVC
-        return PlaceDetailCollectionViewController(coder: coder, place: place, sectionsPlaces: places, placePic: img, placeTypeID: 0)
+        return PlaceDetailCollectionViewController(coder: coder, place: place, sectionsPlaces: places, placePic: img, placeTypeID: 0, cityID: place.cityID.cityID)
     }
     
     
@@ -482,15 +530,21 @@ class AskAICollectionViewController: UICollectionViewController {
 extension AskAICollectionViewController: AskAIInputCollectionViewCellDelegate {
     func didSubmitPrompt(_ prompt: String) {
         gptModel.gptPlaces = []
-        gptModel.gptGooglePlaces = []
-        submitGPTPrompt(prompt: prompt)
+        gptModel.gptFSQPlaces = []
+        switch gptModel.askAIMode {
+        case .displayingPlaces:
+            submitGPTFeedback(prompt: prompt)
+        default:
+            submitGPTPrompt(prompt: prompt)
+        }
     }
     
-    func didChangeText() {
+    func didChangeText(isTyping: Bool) {
         // Trigger a layout update when the text changes
         // Find the index path of the search input cell
+        model.isUserTyping = isTyping
         if let searchInputSection = model.sections.firstIndex(of: .askAIInput) {
-            let indexPath = IndexPath(item: 0, section: searchInputSection)
+            let _ = IndexPath(item: 0, section: searchInputSection)
             // Perform batch updates to animate the cell resizing
             collectionView.performBatchUpdates(nil, completion: nil)
         }
@@ -515,11 +569,7 @@ extension AskAICollectionViewController: AskAIInputCollectionViewCellDelegate {
         let (distance, fromWho) = self.distanceFromYou(place: place)
         cell.milesFromUserLabel.text = "\(String(format: "%.2f", distance)) miles from \(fromWho)"
         
-        if let place = place as? ConciergePlace {
-            cell.communityLovesLabel.text = "\(place.communityVotes) Community Loves"
-        } else if let place = place as? FSQPlace {
-            cell.communityLovesLabel.text = "Rating - \(place.rating ?? 0) / Popularity - \(place.popularity ?? 0)"
-        } else if let place = place as? GooglePlace {
+        if let place = place as? FSQPlace {
             if let rating = place.rating {
                 cell.communityLovesLabel.text = "Rating - \(String(format: "%.2f", rating))"
             } else {
@@ -530,17 +580,17 @@ extension AskAICollectionViewController: AskAIInputCollectionViewCellDelegate {
         cell.delegate = self
     }
 
-    func configureGPTLoadingCell(_ cell: GPTLoadingCollectionViewCell, gptPlaces: Int, googlePlaces: Int) {
+    func configureGPTLoadingCell(_ cell: GPTLoadingCollectionViewCell, gptPlaces: Int, fsqPlaces: Int) {
         if !cell.activityIndicator.isAnimating {
             cell.activityIndicator.startAnimating()
         }
         
         if gptPlaces == 0 {
             cell.gptPlacesLoadedLabel.text = self.gptModel.lastestUserPrompt ?? ""
-            cell.googlePlacesLoadedLabel.text = ""
+            cell.fsqPlacesLoadedLabel.text = ""
         } else {
             cell.gptPlacesLoadedLabel.text = "ChatGPT replied with \(gptPlaces) places"
-            cell.googlePlacesLoadedLabel.text = "Google Maps Platform replied with \(googlePlaces) places"
+            cell.fsqPlacesLoadedLabel.text = "Foursquare replied with \(fsqPlaces) places"
         }
     }
 }
@@ -568,7 +618,7 @@ extension AskAICollectionViewController {
             let distanceToReturn = distance/1609.34
             
             return (distanceToReturn, "City Center")
-        }else {
+        } else {
             let lat = currentUser.latitude ?? 0.0
             let lon = currentUser.longitude ?? 0.0
             let from = CLLocation(latitude: lat, longitude: lon)
@@ -593,7 +643,7 @@ extension AskAICollectionViewController: CLLocationManagerDelegate {
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("location finder error")
+        // print("location finder error")
     }
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -607,8 +657,6 @@ extension AskAICollectionViewController: CLLocationManagerDelegate {
         }
     }
     
-    
-    
     func getUserLoc() {
         model.locationManager.requestWhenInUseAuthorization()
         if let latitude = currentUser.latitude, latitude != 0, let longitude = currentUser.longitude, longitude != 0 {
@@ -618,47 +666,56 @@ extension AskAICollectionViewController: CLLocationManagerDelegate {
     }
 }
 
-
-
-import OpenAIKit
 //import GooglePlaces
 
 extension AskAICollectionViewController {
     func getSuggestedGPTPrompts() {
+        if gptModel.suggestedPrompts.isEmpty != true {
+            return
+        }
+        let systemPrompt = """
+                You are providing suggested search prompts for an iOS app focused on discovering interesting places and attractions.
+                Each suggestion should help users quickly find exciting, unique, or popular locations from an AI Places/Point of Interest suggestion service.
+                Provide the response in a JSON format. Don't provide any supporting text, only the JSON response. This includes markdown like ``` ``` or json. Only include the valid JSON. The response should start with the character "{" and end with the character "}". See the required format below.
+        --------------------------------------------------------------------------------------------------
+                {"suggestedPrompts": [{"prompt": "prompt1"},{"prompt": "prompt2"}]}
+        --------------------------------------------------------------------------------------------------
+        
+        """
         
         var gptPrompt = """
-You are providing suggested prompts to an iOS app that will be displayed to the user. The user will be able to click one of the prompts and another request will be made to suggest places for the user to browse. The prompts should be a good search term that would have associated places in a Point of Interest database like Google Maps Platform or Apple Maps. Keep it interesting for the user by providing obvious prompts along with some creative ones they wouldn't immediately think of. Keep each prompt grounded in a geographic location, keep most of the suggestions in the USA. If the ll parameter below has a valid latitude,longitude value, include prompts like 'Near Me' and suggest more prompts near the users geographic location. A user could be looking for places near them, or they could be looking for cool spots on an upcoming vacation -- Don't suggest 100% prompts based on the users location, always spice it up a bit on at least 30-50% of the suggested prompts.
-
-        Provide the response in a JSON format. Don't provide any supporting text, only the JSON response. See the required format below.
---------------------------------------------------------------------------------------------------
-        {"suggestedPrompts": [{"prompt": "prompt1"},{"prompt": "prompt2"}]}
---------------------------------------------------------------------------------------------------
-
-        Please provide a list of 1-10 suggested prompts for the user.
+                Please provide 10 engaging, creative suggested prompts to help users discover interesting places from a AI Places/Point of Interest suggestion service.
+        
+            Follow these guidelines:
+                1. Prompts should be concise, inviting, and relevant.  
+                2. Include creative suggestions users might not immediately consider—hidden gems, themed locations, trending spots, unique experiences, etc.  
+                3. If the "ll" parameter has a valid latitude and longitude, ensure that 3-5 of the 10 prompts clearly relate to places near the provided coordinates, using phrases like "near me", "nearby", the local city name, or a local neighborhood. This means the remaining 4-6 recommendations should be outside the users location.
+                4. If no "ll" paramter is provided, don't center the prompt suggestions around any specific location - provide prompt suggestions for a variety of locations. Still center each suggested prompt in a geographic location, but choose a variety of locations in the US, and maybe 1 suggested prompt for a geographic location outside the US.
+                5. If "userID" is provided, incorporate personalization based on the user's past searches or indicated preferences. 
+                6. Keep 9-10 of the 10 prompts based in geographic areas within the United States, unless the user's previous searches explicitly include international locations.
+        
+        Parameters provided:
         ll: 
-"""
+        """
         if !model.locDenied && model.locValue.latitude != 0 && model.locValue.longitude != 0 {
             gptPrompt += "\(model.locValue.latitude),\(model.locValue.longitude)"
         }
         
-        let username = currentUser.username ?? "\(currentUser.firstName) \(currentUser.lastName)"
-        let aiMessage = AIMessage(role: .user, content: gptPrompt)
-        openAI.sendChatCompletion(newMessage: aiMessage, previousMessages: [], model: .gptV4(.gpt4), maxTokens: 500, n: 1, user: username, completion: { [weak self] result in
-            guard let self = self else { return }
-            
-            switch result {
-            case .success(let aiResult):
-                // Handle the result actions
-                if let text = aiResult.choices.first?.message?.content {
-                    self.parseGPTPromptsResponse(text: text)
-                }
-            case .failure(let error):
-                //Handle the error
-                let alert = UIAlertController(title: "Error", message: error.localizedDescription, preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "Ok", style: .default))
-                self.present(alert, animated: true)
+        let username = String(currentUser.id)
+        
+        gptPrompt += "\nuserID: "
+        gptPrompt += username
+        
+        let request = ChatGPTCompletionRequest(model: "gpt-4o", systemPrompt: systemPrompt, prompts: [gptPrompt], maxTokens: 500, temperature: 1.2, username: username)
+        
+        Task {
+            let response = try await request.send()
+            if let text = response.choices.first?.message.content {
+                self.parseGPTPromptsResponse(text: text)
+            } else {
+                // print("GPT Prompts for AskAI Error")
             }
-        })
+        }
     }
     
     func submitGPTPrompt(prompt: String) {
@@ -668,15 +725,17 @@ You are providing suggested prompts to an iOS app that will be displayed to the 
         
         gptModel.askAIMode = .loadingPlaces
         updateCollectionView()
+        let systemPrompt = """
+        You are providing places to an iOS app that will be displayed to the user.
+        
+        Provide the response in a JSON format with Place Name and Place Address. Don't provide any supporting text, only the JSON response. See the required format below.  The response should start with the character "{" and end with the character "}". Dont include any whitespace. 
+        --------------------------------------------------------------------------------------------------
+        {"suggestedPlaces": [{"name": "placeName1", "address":"address1", "website":"website1"},{"name": "placeName2", "address":"address2", "website":"website2"}], "location": {"cityName": "cityName", "cityCenterLatitude": latitude (Decimal), "cityCenterLongitude": longitude (Decimal)}}
+        --------------------------------------------------------------------------------------------------
+"""
         
         var gptPrompt = """
-You are providing places to an iOS app that will be displayed to the user. Please provide a list of places based on a prompt that a user is submitting. The user is either selecting a suggested prompt or typing one of their own. Do the best you can to match each of the conditions and provide 1-10 places for the user to further interact with in the app. Ideally it should be a place that would have an associated record in a Point of Interest database like Google Maps Platform or Apple Maps. Keep all of the places grounded in a single geographic location/city - also return this location in the response. If the ll parameter below has a valid latitude,longitude value, and the user didn't specify a different location in their prompt, target places near the user.
-
-Provide the response in a JSON format with Place Name and Place Address. Don't provide any supporting text, only the JSON response. See the required format below.
---------------------------------------------------------------------------------------------------
-{"suggestedPlaces": [{"name": "placeName1", "address":"address1", "website":"website1"},{"name": "placeName2", "address":"address2", "website":"website2"}], "location": {"cityName": "cityName", "cityCenterLatitude": latitude (Decimal), "cityCenterLongitude": longitude (Decimal)}}
---------------------------------------------------------------------------------------------------
-
+Please provide a list of 1-10 places based on the below prompt. Ideally it should be a place that would have an associated record in a Point of Interest database like Google Maps Platform or Apple Maps. Keep all of the places grounded in a single geographic location/city - also return this location in the response. If the ll parameter below has a valid latitude,longitude value, and the user didn't specify a different location in their prompt, target places near the user.
 User Prompt: \(prompt)
 ll: 
 """
@@ -685,41 +744,82 @@ ll:
         }
         
         let username = currentUser.username ?? "\(currentUser.firstName) \(currentUser.lastName)"
-        let aiMessage = AIMessage(role: .user, content: gptPrompt)
-        openAI.sendChatCompletion(newMessage: aiMessage, previousMessages: [], model: .gptV4(.gpt4), maxTokens: 500, n: 1, user: username, completion: { [weak self] result in
-            guard let self = self else { return }
+        let request = ChatGPTCompletionRequest(model: "gpt-4o", systemPrompt: systemPrompt, prompts: [gptPrompt], maxTokens: 500, temperature: 0.7, username: username)
+        
+        
+        Task {
+            let response = try await request.send()
             
-            // Check if the token matches
             if self.apiRequestToken != currentToken {
                 // The view has been reset; ignore this result
                 return
             }
-            switch result {
-            case .success(let aiResult):
-                print("successful response from OpenAI")
-                // Handle the result actions
-                if let text = aiResult.choices.first?.message?.content {
-                    self.parseGPTPlacesResponse(text: text)
-                }
-            case .failure(let error):
+            
+            if let text = response.choices.first?.message.content {
+                self.parseGPTPlacesResponse(text: text)
+            } else {
                 //Handle the error
-                let alert = UIAlertController(title: "Error", message: error.localizedDescription, preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "Ok", style: .default))
-                self.present(alert, animated: true)
+                // print("GPT Places error")
             }
-        })
+        }
+        gptModel.userPrompts.append(gptPrompt)
+    }
+    
+    func submitGPTFeedback(prompt: String) {
+        gptModel.lastestUserPrompt = prompt
+        
+        let currentToken = apiRequestToken
+        
+        gptModel.askAIMode = .loadingPlaces
+        updateCollectionView()
+        
+        
+        let systemPrompt = """
+        You are providing places to an iOS app that will be displayed to the user.
+        
+        Provide the response in a JSON format with Place Name and Place Address. Don't provide any supporting text, only the JSON response. See the required format below.  The response should start with the character "{" and end with the character "}". Dont include any whitespace. 
+        --------------------------------------------------------------------------------------------------
+        {"suggestedPlaces": [{"name": "placeName1", "address":"address1", "website":"website1"},{"name": "placeName2", "address":"address2", "website":"website2"}], "location": {"cityName": "cityName", "cityCenterLatitude": latitude (Decimal), "cityCenterLongitude": longitude (Decimal)}}
+        --------------------------------------------------------------------------------------------------
+"""
+        
+        gptModel.userPrompts.append(prompt)
+        
+        let username = currentUser.username ?? "\(currentUser.firstName) \(currentUser.lastName)"
+        
+        let request = ChatGPTCompletionRequest(model: "gpt-4o", systemPrompt: systemPrompt, prompts: gptModel.userPrompts, maxTokens: 500, temperature: 0.7, username: username)
+        
+        Task {
+            let response = try await request.send()
+        
+            if self.apiRequestToken != currentToken {
+                // The view has been reset; ignore this result
+                return
+            }
+            
+            if let text = response.choices.first?.message.content {
+                self.parseGPTPlacesResponse(text: text)
+            } else {
+                //Handle the error
+                // print("GPT Places error")
+            }
+        }
     }
     
     func parseGPTPromptsResponse(text: String) {
         // Convert the string to a Data object
         guard let jsonData = text.data(using: .utf8) else {
-            print("Error: Cannot convert string to Data object")
+            // print("Error: Cannot convert string to Data object")
             return
         }
 
         // Create an instance of JSONDecoder
         let decoder = JSONDecoder()
-
+        
+        if gptModel.suggestedPrompts.isEmpty != true {
+            return
+        }
+        
         // Attempt to decode the Data object into our Swift structs
         do {
             let response = try decoder.decode(GPTPromptsResponse.self, from: jsonData)
@@ -733,16 +833,18 @@ ll:
         }
         
         DispatchQueue.main.async {
-            UIView.transition(with: self.view, duration: 0.8, options: .showHideTransitionViews, animations: { [weak self] () -> Void in
-                self?.updateCollectionView()
-            }, completion: nil)
+            if !self.model.isUserTyping {
+                UIView.transition(with: self.view, duration: 0.8, options: .showHideTransitionViews, animations: { [weak self] () -> Void in
+                    self?.updateCollectionView()
+                }, completion: nil)
+            }
         }
     }
     
     func parseGPTPlacesResponse(text: String) {
         // Convert the string to a Data object
         guard let jsonData = text.data(using: .utf8) else {
-            print("Error: Cannot convert string to Data object")
+            // print("Error: Cannot convert string to Data object")
             return
         }
 
@@ -756,7 +858,7 @@ ll:
             for place in response.suggestedPlaces {
                 gptModel.gptPlaces.append(place)
             }
-            if let lat = response.location?.cityCenterLatitude, let lon = response.location?.cityCenterLongitude {
+            if let _ = response.location?.cityCenterLatitude, let _ = response.location?.cityCenterLongitude {
                 model.cityCenter = CLLocationCoordinate2D(latitude: 0, longitude: 0)
             }
         } catch {
@@ -769,68 +871,105 @@ ll:
         }
         
         DispatchQueue.main.async {
-            print("UCV2")
             self.updateCollectionView()
         }
-        getGPTGooglePlaces()
+        getGPTFSQPlaces()
     }
     
-    func getGPTGooglePlaces() {
+//    func getGPTGooglePlaces() {
+//        let currentToken = apiRequestToken
+//        
+//        guard !gptModel.gptPlaces.isEmpty else { return }
+//        
+//        var ll = ""
+//        
+//        switch (model.locDenied, model.locValue.longitude) {
+//        case (true, _), (false, 0.0):
+//            let lat = currentUser.latitude ?? 0.0
+//            let lon = currentUser.longitude ?? 0.0
+//            ll = "\(lat),\(lon)"
+//        default:
+//            ll = "\(model.locValue.latitude),\(model.locValue.longitude)"
+//        }
+//        
+//        gptModel.gptGooglePlaces = []
+//        
+//        googlePlacesRequestTask = Task {
+//            for place in gptModel.gptPlaces {
+//                
+//                if Task.isCancelled || self.apiRequestToken != currentToken {
+//                    return
+//                }
+//                
+//                let query = "\(place.name) \(place.address)"
+//                if let googleFindParent = try? await GoogleFindCandidatePlacesRequest(textQuery: query, location: ll).send(), googleFindParent.results.count > 0 {
+//                    let googleFindPlaceDecoded = googleFindParent.results
+//                    let _ = googleFindPlaceDecoded[0].place_id
+//                    let candidate = googleFindParent.results[0]
+//                    
+//                    let placeID = candidate.place_id
+//                    if let googleParent = try? await GooglePlaceDetailRequest(placeID: placeID).send() {
+//                        let googlyPlace = googleParent.result
+//                        let appendPlace = googlyPlace.placeify()
+//                        if gptModel.googlyIDs.contains(placeID) == false {
+//                            gptModel.gptGooglePlaces.append(appendPlace)
+//                            gptModel.googlyIDs.append(placeID)
+//                            DispatchQueue.main.async {
+//                                // Check the token before updating the UI
+//                                if self.apiRequestToken == currentToken {
+//                                    self.updateCollectionView()
+//                                }
+//                            }
+//                        }
+//                    } else {
+//                        gptModel.gptNotFoundPlaces.append(place)
+//                    }
+//                } else {
+//                    gptModel.gptNotFoundPlaces.append(place)
+//                }
+//            }
+//            DispatchQueue.main.async {
+//                // Check the token before updating the UI
+//                if self.apiRequestToken == currentToken {
+//                    self.gptModel.askAIMode = .displayingPlaces
+//                    self.updateCollectionView()
+//                }
+//            }
+//            googlePlacesRequestTask = nil
+//        }
+//    }
+    
+    func getGPTFSQPlaces() {
         let currentToken = apiRequestToken
         
         guard !gptModel.gptPlaces.isEmpty else { return }
         
-        var ll = ""
+        gptModel.gptFSQPlaces = []
         
-        switch (model.locDenied, model.locValue.longitude) {
-        case (true, _), (false, 0.0):
-            let lat = currentUser.latitude ?? 0.0
-            let lon = currentUser.longitude ?? 0.0
-            ll = "\(lat),\(lon)"
-        default:
-            ll = "\(model.locValue.latitude),\(model.locValue.longitude)"
-        }
-        
-        gptModel.gptGooglePlaces = []
-        
-        googlePlacesRequestTask = Task {
-            for place in gptModel.gptPlaces {
+        fsqPlacesRequestTask = Task {
+            for gptPlace in gptModel.gptPlaces {
                 
                 if Task.isCancelled || self.apiRequestToken != currentToken {
                     return
                 }
-                print("GooglePlacesRequest!!")
                 
-                let query = "\(place.name) \(place.address)"
-                if let googleFindParent = try? await GoogleFindCandidatePlacesRequest(textQuery: query, location: ll).send(), googleFindParent.results.count > 0 {
-                    print("GPTGoogle Place Request", place.name)
-                    let googleFindPlaceDecoded = googleFindParent.results
-                    let _ = googleFindPlaceDecoded[0].place_id
-                    let candidate = googleFindParent.results[0]
-                    
-                    let placeID = candidate.place_id
-                    print("placeID", placeID)
-                    if let googleParent = try? await GooglePlaceDetailRequest(placeID: placeID).send() {
-                        let googlyPlace = googleParent.result
-                        let appendPlace = googlyPlace.placeify()
-                        if gptModel.googlyIDs.contains(placeID) == false {
-                            gptModel.gptGooglePlaces.append(appendPlace)
-                            gptModel.googlyIDs.append(placeID)
-                            print("appendPlace", appendPlace.name)
-                            DispatchQueue.main.async {
-                                // Check the token before updating the UI
-                                if self.apiRequestToken == currentToken {
-                                    self.updateCollectionView()
-                                }
-                            }
+                if let fsqParent = try? await FSQExactPlaceRequest(query: gptPlace.name, near: gptPlace.address).send(), fsqParent.results.count > 0 {
+                    let fsqDecoded = fsqParent.results
+                    let fsqPlace = fsqDecoded[0]
+                    if gptModel.fsqIDs.contains(fsqPlace.fsq_id) {
+                        continue
+                    }
+                    let appendPlace = fsqPlace.placeify()
+                    gptModel.gptFSQPlaces.append(appendPlace)
+                    gptModel.fsqIDs.append(appendPlace.fsqID ?? "0")
+                    DispatchQueue.main.async {
+                        // Check the token before updating the UI
+                        if self.apiRequestToken == currentToken {
+                            self.updateCollectionView()
                         }
-                    } else {
-                        gptModel.gptNotFoundPlaces.append(place)
-                        print("Google Place Detail failed")
                     }
                 } else {
-                    gptModel.gptNotFoundPlaces.append(place)
-                    print("Google Place Candidates failed")
+                    gptModel.gptNotFoundPlaces.append(gptPlace)
                 }
             }
             DispatchQueue.main.async {
@@ -840,7 +979,7 @@ ll:
                     self.updateCollectionView()
                 }
             }
-            googlePlacesRequestTask = nil
+            fsqPlacesRequestTask = nil
         }
     }
 }
@@ -848,6 +987,8 @@ ll:
 
 extension AskAICollectionViewController: GPTPlaceCollectionViewCellDelegate, GPTClearCollectionViewCellDelegate {
     func addToItinerary(_ place: any Place, isFSQ: Bool) {
+        model.itinerarySelectedPlace = place
+        self.performSegue(withIdentifier: "AddToItinerary", sender: nil)
     }
     
     func addComment(_ placeID: Int) {
@@ -871,5 +1012,27 @@ extension AskAICollectionViewController: GPTPlaceCollectionViewCellDelegate, GPT
     func clearPressed() {
         resetAskAIView()
         updateCollectionView()
+    }
+}
+
+extension AskAICollectionViewController: UIGestureRecognizerDelegate {
+    func shouldMapEnabled() {
+        mapBarButton.isEnabled = gptModel.askAIMode == .displayingPlaces
+    }
+    
+    @objc private func handleTapGesture() {
+        view.endEditing(true) // Dismiss the keyboard
+        updateCollectionView() // Update the collection view
+    }
+    
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        // Check if the touch is within a collection view cell
+        let location = touch.location(in: collectionView)
+        if let _ = collectionView.indexPathForItem(at: location) {
+            // A collection view item was tapped, let the collection view handle it
+            return false
+        }
+        // Otherwise, allow the gesture recognizer to handle the tap
+        return true
     }
 }

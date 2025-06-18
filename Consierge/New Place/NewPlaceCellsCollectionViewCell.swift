@@ -19,10 +19,20 @@ class PlaceAddressSearchCollectionViewCell: UICollectionViewCell {
     @IBAction func clearText(_ sender: Any) {
         delegate?.clearAddressText()
     }
+    
+    func turnOffAutoCorrect() {
+        cityAddressText.autocorrectionType = .no
+        cityAddressText.spellCheckingType = .no
+    }
 }
 protocol PlaceAddressSearchCellDelegate: AnyObject {
     func addressUpdated(address: String)
     func clearAddressText()
+}
+
+class AutoFillStatusCollectionViewCell: UICollectionViewCell {
+    @IBOutlet var autoCompleteLabel: UILabel!
+    @IBOutlet var activityIndicator: UIActivityIndicatorView!
 }
 
 class ChoosePhotosCollectionViewCell: UICollectionViewCell {

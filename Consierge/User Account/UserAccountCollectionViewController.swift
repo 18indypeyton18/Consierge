@@ -12,40 +12,60 @@ var profPicture: UIImage?
 
 class UserAccountCollectionViewController: UICollectionViewController, UINavigationControllerDelegate {
     
-    var selectedSegmentIndex = true
+    var selectedSegmentIndex = 0
     var profPicURL: String?
     
-    var itineraries = [Itinerary]()
-    var itineraryLinesDict = [Int: [ItineraryLine]]()
+    var itinerarySelectedPlace: Place?
+    
+    var placesAuthored: Int?
     
     var imageRequestTask: Task<Void,Never>? = nil
     var fsqPlacesRequestTask: Task<Void, Never>? = nil
-    var itinerariesRequestTask: Task<Void, Never>? = nil
-    var itineraryLinesRequestTask: Task<Void, Never>? = nil
+    var authoredRequestTask: Task<Void, Never>? = nil
     deinit {
         imageRequestTask?.cancel()
         fsqPlacesRequestTask?.cancel()
-        itinerariesRequestTask?.cancel()
-        itineraryLinesRequestTask?.cancel()
+        authoredRequestTask?.cancel()
     }
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        
+        if currentUser.email == "GuestUser" {
+            let bundle = Bundle(identifier: "com.ALMApps.Consierge")
+            let storyboard = UIStoryboard(name: "Main", bundle: bundle)
+            
+            let homeController = storyboard.instantiateViewController(identifier: "HomePage")
+            
+            (UIApplication.shared.connectedScenes.first?.delegate as? SceneDelegate)?.changeRootViewController(homeController)
+        }
+        
         setupPage()
         collectionView.collectionViewLayout = createLayout()
     }
     
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if itineraryAdded || placeRecentlyLoved {
+            let indexSet = IndexSet(integer: 2)
+            self.collectionView.reloadSections(indexSet)
+            itineraryAdded = false
+            placeRecentlyLoved = false
+        }
+    }
+    
     func setupPage() {
+        getPlacesAuthored()
+        let itFunc = ItineraryFunctions()
+        itFunc.delegate = self
+        itFunc.getItineraries()
         if profPicture == nil {
-            print("NIL")
             updateProfPic()
         } else {
             let indexSet = IndexSet(integer: 0)
             collectionView.reloadSections(indexSet)
         }
-        
-        getItineraries()
     }
 
     override func numberOfSections(in collectionView: UICollectionView) -> Int {
@@ -63,8 +83,8 @@ class UserAccountCollectionViewController: UICollectionViewController, UINavigat
             return 2
         default:
             switch selectedSegmentIndex {
-            case true:
-                return userLovedPlaces.count + userFSQLovedPlaces.count
+            case 0:
+                return userLovedPlaces.count
             default:
                 return itineraries.count
             }
@@ -84,6 +104,8 @@ class UserAccountCollectionViewController: UICollectionViewController, UINavigat
             cell.profPicImageView.layer.borderColor = UIColor.white.cgColor
             cell.profPicImageView.layer.cornerRadius = cell.profPicImageView.frame.size.width / 2
             cell.profPicImageView.clipsToBounds = true
+            
+            cell.placesAuthoredLabel.text = "\(placesAuthored ?? 0) Places Added"
             
             if let profPicture = profPicture {
                 cell.profPicImageView.image = profPicture
@@ -107,27 +129,21 @@ class UserAccountCollectionViewController: UICollectionViewController, UINavigat
             cell.segmentSelectedBar.layer.shadowOffset = CGSize(width: 0.0, height: 0.5)
             cell.segmentSelectedBar.layer.shadowOpacity = 0.5
             
-            if indexPath.item == 0 && selectedSegmentIndex || indexPath.item == 1 && !selectedSegmentIndex  {
+            if indexPath.item == selectedSegmentIndex  {
                 cell.segmentSelectedBar.backgroundColor = .black
-                //cell.placeTypeName.font = UIFont(name: "Apple SD Gothic Neo Bold", size: 18)
             } else {
                 cell.segmentSelectedBar.backgroundColor = .white
-                //cell.placeTypeName.font = UIFont(name: "Apple SD Gothic Neo Normal", size: 18)
             }
             
             return cell
         default:
             switch selectedSegmentIndex {
-            case true:
+            case 0:
                 let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "UserAccountLovedPlace", for: indexPath) as! UserAccountLovedPlaceCollectionViewCell
                 
                 //Place object stored in each instance of ViewModel.Item and can be used to configure the cell
                 var place: Place?
-                if indexPath.item < userLovedPlaces.count {
-                    place = userLovedPlaces[indexPath.item]
-                } else {
-                    place = userFSQLovedPlaces[indexPath.item - userLovedPlaces.count]
-                }
+                place = userLovedPlaces[indexPath.item]
                 guard let place = place else { return cell }
                 
                 cell.place = place
@@ -143,9 +159,9 @@ class UserAccountCollectionViewController: UICollectionViewController, UINavigat
                 
                 switch place.self {
                 case is FSQPlace:
-                    break
+                    cell.dateLovedLabel.text = getLovedPlaceTimestamp(placeID: 0, fsqID: place.fsqID ?? "", placeSource: .fsq)
                 default:
-                    cell.dateLovedLabel.text = getLovedPlaceTimestamp(placeID: place.id, placeSource: .concierge)
+                    cell.dateLovedLabel.text = getLovedPlaceTimestamp(placeID: place.id, fsqID: "", placeSource: .concierge)
                 }
                 
                 cell.delegate = self
@@ -157,15 +173,17 @@ class UserAccountCollectionViewController: UICollectionViewController, UINavigat
                 
                 //Place object stored in each instance of ViewModel.Item and can be used to configure the cell
                 let itinerary = itineraries[indexPath.item]
+                cell.itinerary = itinerary
                 
                 cell.activityIndicator.startAnimating()
                 cell.itineraryNameLabel.text = itinerary.name
                 
                 if let imageURL = itinerary.coverImageURL {
-                    cell.fetchImage(imageURL: imageURL)
+                    cell.fetchImage(imageURL: imageURL, src: itinerary.coverImageSrc)
                 }
                 
                 guard let itLines = itineraryLinesDict[itinerary.ID] else {return cell}
+                
                 switch itLines.count {
                 case 0:
                     cell.placeName1.isHidden = true
@@ -228,16 +246,25 @@ class UserAccountCollectionViewController: UICollectionViewController, UINavigat
                     cell.dotDotDotLabel.isHidden = true
                 }
                 
+                cell.delegate = self
+                
                 return cell
             }
         }
     }
     
     override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        print("HELLO", itineraries)
         if indexPath.section == 1 {
-            selectedSegmentIndex.toggle()
-            collectionView.reloadData()
+            if selectedSegmentIndex == indexPath.item { return }
+            
+            selectedSegmentIndex = indexPath.item
+            
+            let newLayout = createLayout()
+            collectionView.setCollectionViewLayout(newLayout, animated: true)
+            
+            let indexSet: IndexSet = [1, 2]
+            collectionView.reloadSections(indexSet)
+            
         } else if indexPath.section == 2 {
             
         }
@@ -256,12 +283,12 @@ class UserAccountCollectionViewController: UICollectionViewController, UINavigat
                 
                 return section
             case 1:
-                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.5), heightDimension: .absolute(40))
+                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1.0), heightDimension: .fractionalHeight(1.0))
                 let item = NSCollectionLayoutItem(layoutSize: itemSize)
                 
                 let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.5), heightDimension: .absolute(40))
                 
-                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitem: item, count: 1)
+                let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item])
                 
                 let section = NSCollectionLayoutSection(group: group)
                 section.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 0, bottom: 10, trailing: 0)
@@ -270,7 +297,7 @@ class UserAccountCollectionViewController: UICollectionViewController, UINavigat
                 return section
             default:
                 switch self.selectedSegmentIndex {
-                case true:
+                case 0:
                     let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(70))
                     let item = NSCollectionLayoutItem(layoutSize: itemSize)
                     item.contentInsets = NSDirectionalEdgeInsets(top: 3, leading: 5, bottom: 2, trailing: 5)
@@ -282,7 +309,7 @@ class UserAccountCollectionViewController: UICollectionViewController, UINavigat
                     section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 7, trailing: 0)
                     
                     return section
-                case false:
+                default:
                     let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(160))
                     let item = NSCollectionLayoutItem(layoutSize: itemSize)
                     item.contentInsets = NSDirectionalEdgeInsets(top: 3, leading: 5, bottom: 2, trailing: 5)
@@ -301,13 +328,21 @@ class UserAccountCollectionViewController: UICollectionViewController, UINavigat
     }
     
     @IBSegueAction func lovedPlaceSelected(_ coder: NSCoder, sender: Any?) -> UICollectionViewController? {
-        guard let cell = sender as? UserAccountLovedPlaceCollectionViewCell, let place = cell.place, let img = cell.placePic.image, let indexPath = collectionView.indexPath(for: cell) else {return nil}
+        guard let cell = sender as? UserAccountLovedPlaceCollectionViewCell, let place = cell.place, let img = cell.placePic.image, let _ = collectionView.indexPath(for: cell) else {return nil}
         return placeSelected(place: place, img: img, coder: coder)
     }
     
     func placeSelected(place: Place, img: UIImage, coder: NSCoder) -> UICollectionViewController? {
         //return DetailVC
-        return PlaceDetailCollectionViewController(coder: coder, place: place, sectionsPlaces: userLovedPlaces, placePic: img, placeTypeID: 0)
+        var cityID = nil as Int?
+        if place.cityID.cityID > 0 { cityID = place.cityID.cityID }
+        return PlaceDetailCollectionViewController(coder: coder, place: place, sectionsPlaces: userLovedPlaces, placePic: img, placeTypeID: 0, cityID: cityID)
+    }
+    override func shouldPerformSegue(withIdentifier identifier: String, sender: Any?) -> Bool {
+        if let cell = sender as? UserAccountLovedPlaceCollectionViewCell {
+            if cell.placePic.image == nil { return false }
+        }
+        return true
     }
     
     
@@ -323,11 +358,45 @@ class UserAccountCollectionViewController: UICollectionViewController, UINavigat
         return ViewItineraryCollectionViewController(coder: coder, itinerary: itinerary, itineraryLines: itineraryLines)
     }
     
+    @IBAction func unwindToUserAccount(segue: UIStoryboardSegue) {}
+    
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        if segue.identifier == "AddToItinerary" {
+            let navController = segue.destination as! UINavigationController
+            let tableController = navController.topViewController as! AddToItineraryTableViewController
+            guard let place = itinerarySelectedPlace else { return }
+            var isFSQPlace = false
+            var type = "Concierge"
+            if let _ = place as? FSQPlace {
+                isFSQPlace = true
+                type = "FSQ"
+            }
+            tableController.place = place
+            tableController.cityID = place.cityID
+            tableController.isFSQPlace = isFSQPlace
+            
+            tableController.type = type
+        }
+        
+        if segue.identifier == "UserActivity" {
+            let cvc = segue.destination as! UserActivityCollectionViewController
+            cvc.userID = currentUser.id
+            if let uName = currentUser.username, uName != "" {
+                cvc.userName = uName
+            } else {
+                cvc.userName = "\(currentUser.firstName) \(currentUser.lastName.first ?? " ")"
+            }
+        }
+    }
+    
 }
 
 extension UserAccountCollectionViewController: UserAccountHeaderCellDelegate, UIImagePickerControllerDelegate {
+    func authorLabelClicked() {
+        performSegue(withIdentifier: "UserActivity", sender: nil)
+    }
+    
     func updateProfPicClicked() {
-        print("updateProfPicClicked")
         //Display an Alert Controller at the bottom of the screen allowing the user to either select an image or use the camera to take a new image
         
         let imagePicker = UIImagePickerController()
@@ -368,20 +437,19 @@ extension UserAccountCollectionViewController: UserAccountHeaderCellDelegate, UI
     }
     
     func uploadPic(pic: UIImage) {
-        print("uploadPic")
         //Triggered after a profile pic is uploaded - used to upload the image and set the correct path on the User Record in the DB
         
         let userID = currentUser.id
         let fileName = "\(userID).jpeg"
         
-        let imageURL = "/Concierge/photos/users/\(fileName)"
+        let imageURL = "/users/\(fileName)"
         
         let params = ["name": "AustinMcL","id": "12345","type":"users"]
         
         
         let imageUpload = ImageUpload(image: pic, imageURL: imageURL, key: "restaurantPic", params: params, fileName: fileName)!
         let userProfPic = ProfilePic(imageURL: imageURL, userID: userID)
-        print("userProfPic!!!", userProfPic)
+
         Task {
             try? await NewImageRequest(imageUpload: imageUpload).send()
         }
@@ -389,8 +457,12 @@ extension UserAccountCollectionViewController: UserAccountHeaderCellDelegate, UI
             let result = try? await UpdateUserProfPicRequest(profilePic: userProfPic).send()
             if let _ = result {
                 UserDefaults.standard.set(imageURL, forKey: "profPicURL")
+                profPicture = pic
+                DispatchQueue.main.async {
+                    self.collectionView.reloadSections(IndexSet(integer: 0))
+                }
             } else {
-                print("error uploading User Profile Pic")
+                // print("error uploading User Profile Pic")
             }
         }
     }
@@ -403,10 +475,8 @@ extension UserAccountCollectionViewController: UserAccountHeaderCellDelegate, UI
         }
         
         if let profPicURL = profPicURL {
-            print("url exists", profPicURL)
             imageRequestTask = Task {
                 if let image = try? await ImageRequest(path: profPicURL).send() {
-                    print("image got")
                     DispatchQueue.main.async {
                         profPicture = image
                         let indexSet = IndexSet(integer: 0)
@@ -421,6 +491,8 @@ extension UserAccountCollectionViewController: UserAccountHeaderCellDelegate, UI
 
 extension UserAccountCollectionViewController: UserAccountLovedPlaceCollectionViewCellDelegate {
     func addToItinerary(_ place: any Place, isFSQ: Bool) {
+        itinerarySelectedPlace = place
+        self.performSegue(withIdentifier: "AddToItinerary", sender: nil)
     }
     
     func addComment(_ placeID: Int) {
@@ -439,27 +511,49 @@ extension UserAccountCollectionViewController: UserAccountLovedPlaceCollectionVi
     }
     
     func placeLoved(place: any Place) {
+        let indexSet = IndexSet(integer: 2)
+        self.collectionView.reloadSections(indexSet)
     }
 }
 
 extension UserAccountCollectionViewController {
-    func getLovedPlaceTimestamp(placeID: Int, placeSource: PlaceSource) -> String {
+    func getLovedPlaceTimestamp(placeID: Int, fsqID: String, placeSource: PlaceSource) -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        dateFormatter.timeZone = TimeZone(abbreviation: "UTC")
+        
         if placeSource == .concierge {
             let lovePlace = lovedPlaceDict["\(placeID)"]
             let dateString = lovePlace?.lovedDate
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-            dateFormatter.timeZone = TimeZone(abbreviation: "UTC")
+            guard var dateString = dateString else { return "" }
+            
+            if dateString.hasSuffix("Z") {
+                dateString = String(dateString.dropLast())
+                dateString = dateString.replacingOccurrences(of: "T", with: " ")
+            }
 
-            if let dateString = dateString, let date = dateFormatter.date(from: dateString) {
+            if let date = dateFormatter.date(from: dateString) {
                 return timeAgo(from: date)
             }
             else {
                 return ""
             }
-        }
-        else {
-            return ""
+        } else {
+            let lovePlace = lovedPlaceDict[fsqID]
+            let dateString = lovePlace?.lovedDate
+            guard var dateString = dateString else { return "" }
+            
+            if dateString.hasSuffix("Z") {
+                dateString = String(dateString.dropLast())
+                dateString = dateString.replacingOccurrences(of: "T", with: " ")
+            }
+
+            if let date = dateFormatter.date(from: dateString) {
+                return timeAgo(from: date)
+            }
+            else {
+                return ""
+            }
         }
     }
     
@@ -487,46 +581,46 @@ extension UserAccountCollectionViewController {
 }
 
 extension UserAccountCollectionViewController {
-    func getItineraries() {
-        let userID = currentUser.id
-        itinerariesRequestTask?.cancel()
-        itinerariesRequestTask = Task {
-            if let userItineraries = try? await UserItinerariesRequest(userID: userID).send() {
-                itineraries = userItineraries
-                for itinerary in itineraries {
-                    print("1 itinerary: ", itinerary.ID)
-                    getItineraryLines(itineraryId: itinerary.ID)
-                }
-                let indexSet = IndexSet(integer: 2)
-                self.collectionView.reloadSections(indexSet)
-            } else {
-                itineraries = []
-            }
-            
-            itinerariesRequestTask = nil
-        }
-    }
-    
-    func getItineraryLines(itineraryId: Int) {
-        print("2 itinerary id: ", itineraryId)
-        itineraryLinesRequestTask = Task {
-            print("4 itinerary: ", itineraryId)
-            if let itineraryLines = try? await UserItineraryLinesRequest(itineraryID: itineraryId).send() {
-                itineraryLinesDict[itineraryId] = itineraryLines
-                print("3 itinerary: ", itineraryId, "lines: ", itineraryLines)
-            } else {
-                itineraryLinesDict[itineraryId] = []
-            }
-            itineraryLinesRequestTask = nil
-        }
-        
-    }
-    
     func formatDateToReadableString(_ date: Date) -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.dateStyle = .long
         dateFormatter.timeStyle = .none
         return dateFormatter.string(from: date)
+    }
+}
+
+
+extension UserAccountCollectionViewController: ItineraryCellDelegate {
+    func updateAfterDelete(_ itinerary: Itinerary) {
+        let indexSet = IndexSet(integer: 2)
+        self.collectionView.reloadSections(indexSet)
+    }
+}
+
+extension UserAccountCollectionViewController {
+    func getPlacesAuthored() {
+        let userID = currentUser.id
+        authoredRequestTask = Task {
+            if let ct = try? await PlacesAuthoredNumRequest(userID: userID).send() {
+                placesAuthored = ct
+            }
+            let indexSet = IndexSet(integer: 0)
+            DispatchQueue.main.async {
+                self.collectionView.reloadSections(indexSet)
+            }
+            authoredRequestTask = nil
+        }
+    }
+}
+
+extension UserAccountCollectionViewController: ItineraryFunctionsDelegate {
+    func updatePage() {
+        let indexSet = IndexSet(integer: 2)
+        if selectedSegmentIndex == 1 {
+            DispatchQueue.main.async {
+                self.collectionView.reloadSections(indexSet)
+            }            
+        }
     }
 }

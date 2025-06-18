@@ -7,11 +7,15 @@
 
 import Foundation
 
+var userLovedPlaces = [Place]()
+var placeRecentlyLoved = false
+
 class LovePlaceFunctions {
     weak var delegate: LovePlaceDelegate?
     let group = DispatchGroup()
     
     func lovePlace(place: Place?, placeSource: PlaceSource) {
+        placeRecentlyLoved = true
         guard let place = place else {return}
         let userID = currentUser.id
         
@@ -34,21 +38,26 @@ class LovePlaceFunctions {
                 let resultValue = try? await unLovePlaceRequeset(lovePlace:lovePlace).send()
                 if resultValue?["status"] == "Success" {
                     let placeIndex = getPlaceIndex(place:place)
-                    guard let placeIndex = placeIndex else {return}
+                    guard let placeIndex = placeIndex else {
+                        group.leave()
+                        return
+                    }
                     userLovedPlaces.remove(at: placeIndex)
+                    lovedPlaceDict.removeValue(forKey: "\(place.id)")
+                    UserDefaults.standard.set(false, forKey: "\(placeSource.rawValue)\(place.id)")
                 }
                 group.leave()
             }
-            UserDefaults.standard.set(false, forKey: "\(placeSource.rawValue)\(place.id)")
         } else {
             Task {
                 let resultValue = try? await lovePlaceRequeset(lovePlace: lovePlace).send()
                 if resultValue?["status"] == "Success" {
                     userLovedPlaces.insert(place, at: 0)
+                    lovedPlaceDict["\(lovePlace.placeID)"] = lovePlace
+                    UserDefaults.standard.set(true, forKey: "\(placeSource.rawValue)\(place.id)")
                 }
                 group.leave()
             }
-            UserDefaults.standard.set(true, forKey: "\(placeSource.rawValue)\(place.id)")
         }
         group.wait()
     }
@@ -72,17 +81,16 @@ class LovePlaceFunctions {
 
 extension LovePlaceFunctions {
     func loveFSQPlace(place: Place?, placeSource: PlaceSource, placeTypeID: Int, cityID: Int) {
+        placeRecentlyLoved = true
         guard let place = place else {return}
         let userID = currentUser.id
         
         let midnightToday = Date()
         let dateString = midnightToday.ISO8601Format()
         
-        print(placeSource.rawValue)
         let lovePlace = LovePlace(ID: 0, userID: userID, placeID: 0, type: placeSource.rawValue, lovedDate: dateString, fsqID: place.fsqID ?? "", placeTypeID: placeTypeID, cityID: cityID)
         
-        
-        let placeLoved = lovedFSQPlaces.contains { lp in
+        let placeLoved = userLovedPlaces.contains { lp in
             lp.fsqID == place.fsqID
         }
         
@@ -92,8 +100,13 @@ extension LovePlaceFunctions {
                 let resultValue = try? await unLovePlaceRequeset(lovePlace:lovePlace).send()
                 if resultValue?["status"] == "Success" {
                     let placeIndex = getPlaceIndex(place:place)
-                    guard let placeIndex = placeIndex else {return}
+                    guard let placeIndex = placeIndex else {
+                        group.leave()
+                        return
+                    }
                     userLovedPlaces.remove(at: placeIndex)
+                    lovedPlaceDict.removeValue(forKey: "\(place.fsqID ?? "")")
+                    UserDefaults.standard.set(false, forKey: "\(placeSource.rawValue)\(place.fsqID ?? "")")
                 }
                 group.leave()
             }
@@ -103,15 +116,15 @@ extension LovePlaceFunctions {
                 let resultValue = try? await lovePlaceRequeset(lovePlace: lovePlace).send()
                 if resultValue?["status"] == "Success" {
                     userLovedPlaces.insert(place, at: 0)
+                    lovedPlaceDict["\(lovePlace.fsqID)"] = lovePlace
+                    UserDefaults.standard.set(true, forKey: "\(placeSource.rawValue)\(place.fsqID ?? "")")
                 }
                 group.leave()
             }
-            UserDefaults.standard.set(true, forKey: "\(placeSource.rawValue)\(place.id)")
         }
         group.wait()
     }
 }
-
 
 protocol LovePlaceDelegate: AnyObject {
     func updatePage()

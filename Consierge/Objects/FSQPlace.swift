@@ -33,7 +33,7 @@ final class FSQPlace: Codable, Place {
     var placeTypeID: Int? = nil
     
     required init(fsq_id: String, name: String, description: String?, categories: [FSQCategory]?, location: FSQLocation, photos: [FSQPhotos]?, website: String, price: Int, geocodes: FSQGeocodes, rating: Double?, popularity: Double?) {
-        self.cityLookup = ["Indianapolis":City(cityID: 1, name: "Indianapolis", nickname: "Indy", imageURL: "/Concierge/photos/cityHeaders/Indy.jpg", latitude: 39.7684, longitude: -86.1581, n: 40.48343, w: -86.99053, s: 39.1198, e: -85.7417), "Chicago":City(cityID: 2, name: "Chicago", nickname: "Chitown", imageURL: "/Concierge/photos/cityHeaders/Chicago.jpg", latitude: 41.8781, longitude: -87.6298, n: 42.28144, w: -88.40759, s: 41.44728, e: -87.43568)]
+        self.cityLookup = ["Indianapolis":City(cityID: 1, name: "Indianapolis", nickname: "Indy", imageURL: "/Concierge/photos/cityHeaders/Indy.jpg", latitude: 39.7684, longitude: -86.1581, n: 40.48343, w: -86.99053, s: 39.1198, e: -85.7417), "Chicago":City(cityID: 2, name: "Chicago", nickname: "Chitown", imageURL: "/Concierge/photos/cityHeaders/Chicago.jpg", latitude: 41.8781, longitude: -87.6298, n: 42.28144, w: -88.40759, s: 41.44728, e: -87.43568), "":City(cityID: 0, name: "Chicago", nickname: "Chitown", imageURL: "/Concierge/photos/cityHeaders/Chicago.jpg", latitude: 41.8781, longitude: -87.6298, n: 42.28144, w: -88.40759, s: 41.44728, e: -87.43568)]
         
         self.id = 0
         self.name = name
@@ -49,10 +49,10 @@ final class FSQPlace: Codable, Place {
             self.neighborhood = "Unknown"
         }
         self.isLocal = true
-        if let cityID = cityLookup[location.dma ?? "Chicago"] {
+        if let cityID = cityLookup[location.dma ?? ""] {
             self.cityID = cityID
         } else {
-            self.cityID = City(cityID: 2, name: "Chicago", nickname: "Chitown", imageURL: "/Concierge/photos/cityHeaders/Chicago.jpg", latitude: 41.8781, longitude: -87.6298, n: 42.28144, w: -88.40759, s: 41.44728, e: -87.43568)
+            self.cityID = City(cityID: 0, name: "Chicago", nickname: "Chitown", imageURL: "/Concierge/photos/cityHeaders/Chicago.jpg", latitude: 41.8781, longitude: -87.6298, n: 42.28144, w: -88.40759, s: 41.44728, e: -87.43568)
         }
         self.communityVotes = 0
         if let photos = photos, photos.isEmpty == false {

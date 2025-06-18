@@ -51,8 +51,8 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
     
     let group = DispatchGroup()
     
+    var isConciergePlace = true
     var isFSQPlace = false
-    var isGooglePlace = false
     
     var commentVotes = [Int: String]()
     
@@ -66,6 +66,8 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
     var segment = 0
     var type = ""
     var selectedPicIndex = 0
+    
+    var authorProfPic: UIImage?
     
     var imageRequestTask: Task<Void,Never>? = nil
     var commentsRequestTask: Task<Void,Never>? = nil
@@ -97,17 +99,24 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    init?(coder: NSCoder, place: Place, sectionsPlaces: [Place], placePic: UIImage, placeTypeID: Int?) {
+    init?(coder: NSCoder, place: Place, sectionsPlaces: [Place], placePic: UIImage, placeTypeID: Int?, cityID: Int?) {
         //init with required Place and optional section of Places
         self.place = place
         self.sectionsPlaces = sectionsPlaces
         self.placePic = placePic
         self.placeTypeID = placeTypeID
+        self.cityID = cityID
         super.init(coder: coder)
     }
     
     func loadPage() {
+        switch (place is ConciergePlace) {
+        case true: isConciergePlace = true
+        case false: isConciergePlace = false
+        }
+        
         self.navigationItem.title = place.name
+        segment = 0
         loadImages()
         if let pic = sectionPlacePics[placeIndex] {
             placePic = pic
@@ -118,15 +127,16 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
         updateHeartAtLoad()
         lovePlaceFunctions.delegate = self
         picGetter.delegate = self
-        switch (isFSQPlace, isGooglePlace) {
-        case (false, false):
+        switch isFSQPlace {
+        case false:
             getComments()
-        case (true, false):
-            getFSQComments()
-        default:
-            getComments()
+        case true:
+            break
         }
         getTags()
+        if place.cityID.cityID > 0 { cityID = place.cityID.cityID }
+        if place.placeTypeID ?? -1 > 0 { placeTypeID = place.placeTypeID }
+        loadCatAndNei()
         
         UIView.transition(with: collectionView, duration: 0.2, options: .transitionCrossDissolve, animations: { () -> Void in
             self.collectionView.reloadData()
@@ -151,13 +161,6 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                 picGetter.getFSQImages(imageURL: imageURL, i: 0)
             }
         }
-        if let place = place as? GooglePlace {
-            var i = 0
-            for imageURL in place.photoURLs {
-                picGetter.getGoogleImages(photo_reference: imageURL, i: i)
-                i += 1
-            }
-        }
     }
     
     func loadSectionImages() {
@@ -168,9 +171,6 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
             }
             if let place = place as? FSQPlace {
                 picGetter.returnFSQImage(imageURL: place.imageURL, i: i)
-            }
-            if let place = place as? GooglePlace {
-                picGetter.returnGoogleImage(photo_reference: place.imageURL, i: i)
             }
             i += 1
         }
@@ -204,17 +204,10 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
             type = "FSQ"
             placeSource = .fsq
             isFSQPlace = true
-            isGooglePlace = false
-        case is GooglePlace:
-            type = "Google"
-            placeSource = .google
-            isFSQPlace = false
-            isGooglePlace = true
-        default: type =
-            "Concierge"
+        default:
+            type = "Concierge"
             placeSource = .concierge
             isFSQPlace = false
-            isGooglePlace = false
         }
     }
     
@@ -248,53 +241,46 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
     
     @objc func doubleTapped() {
         //trigger LovePlace or LoveFSQPlace when user doubleTaps on the imageView
-        switch (isFSQPlace, isGooglePlace) {
-        case (true, _):
-            print("love FSQ")
+        switch isFSQPlace {
+        case true:
             loveFSQAction()
-        case (_, true):
-            loveGooglyAction()
-        default:
+        case false:
             lovePlaceAction()
         }
     }
     
     func lovePlaceAction() {
+        if currentUser.role == "GuestUser" {
+            showPopup()
+            return
+        }
         lovePlaceFunctions.lovePlace(place: place, placeSource: .concierge)
         updateHeartButton()
     }
     
     func loveFSQAction() {
+        if currentUser.role == "GuestUser" {
+            showPopup()
+            return
+        }
         guard let place = place as? FSQPlace else {return}
         lovePlaceFunctions.loveFSQPlace(place: place, placeSource: .fsq, placeTypeID: self.placeTypeID ?? 0, cityID: cityID ?? 0)
         updateHeartButton()
     }
     
-    func loveGooglyAction() {
-        guard let place = place as? GooglePlace else {return}
-        lovePlaceFunctions.lovePlace(place: place, placeSource: .google)
-        updateHeartButton()
-    }
-    
     func updateHeartButton() {
-        // Create a UIImageView instance
         let imageView = UIImageView()
-
-        // Set the content mode of the imageView to scale aspect fit
         imageView.contentMode = .scaleAspectFit
-        
-        // Disable autoresizing mask translation
         imageView.translatesAutoresizingMaskIntoConstraints = false
-        
         var placeLoved = false
         switch isFSQPlace {
-        case true:
-            placeLoved = lovedFSQPlaces.contains { lp in
-                lp.fsqID == place.fsqID
-            }
         case false:
             placeLoved = userLovedPlaces.contains { thisPlace in
                 "\(thisPlace.name)\(thisPlace.id)\(thisPlace.fsqID ?? "")" == "\(place.name)\(place.id)\(place.fsqID ?? "")"
+            }
+        default:
+            placeLoved = userLovedPlaces.contains { lp in
+                lp.fsqID == place.fsqID
             }
         }
         
@@ -321,10 +307,7 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
         imageView.addGestureRecognizer(tapGesture)
         
         // Apply width and height constraints
-        NSLayoutConstraint.activate([
-            imageView.widthAnchor.constraint(equalToConstant: 25), // Adjust the width as per your requirement
-            imageView.heightAnchor.constraint(equalToConstant: 25) // Adjust the height as per your requirement
-        ])
+        NSLayoutConstraint.activate([imageView.widthAnchor.constraint(equalToConstant: 25), imageView.heightAnchor.constraint(equalToConstant: 25)])
     }
     
     func updateHeartAtLoad() {
@@ -339,13 +322,13 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
         
         var placeLoved = false
         switch isFSQPlace {
-        case true:
-            placeLoved = lovedFSQPlaces.contains { lp in
-                lp.fsqID == place.fsqID
-            }
         case false:
             placeLoved = userLovedPlaces.contains { thisPlace in
                 "\(thisPlace.name)\(thisPlace.id)\(thisPlace.fsqID ?? "")" == "\(place.name)\(place.id)\(place.fsqID ?? "")"
+            }
+        default:
+            placeLoved = userLovedPlaces.contains { lp in
+                return lp.fsqID == place.fsqID
             }
         }
         
@@ -421,11 +404,9 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
     }
     
     @objc func lovePlaceButtonTapped() {
-        switch (isFSQPlace, isGooglePlace) {
-        case (true, _):
+        switch isFSQPlace {
+        case true:
             loveFSQAction()
-        case (_, true):
-            loveGooglyAction()
         default:
             lovePlaceAction()
         }
@@ -436,7 +417,8 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
         let heightOnWidthRatio = (placePic.size.height) / (placePic.size.width)
         let newHeight = width * heightOnWidthRatio
         
-        return newHeight
+        if newHeight < 500 {
+            return newHeight} else { return 500 }
     }
     
     func getTags() {
@@ -445,6 +427,8 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                 self.tags = tags.sorted(by: { lhs, rhs in
                     lhs.count > rhs.count
                 })
+            } else {
+                self.tags = []
             }
             collectionView.reloadData()
             tagsRequestTask = nil
@@ -454,10 +438,13 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
     
     func loadCatAndNei() {
         neiAndCatTask = Task {
+            placeCategory = Genre(ID: 0, name: place.genre, placeTypeID: place.placeTypeID ?? 0, clicked: 1, fsqCategoryCode: 0)
             if let cat = try? await GetPlaceCategoryRequest(category: place.genre, placeTypeID: place.placeTypeID).send() {
                 placeCategory = cat[0]
             }
             
+            placeNeighborhood = Neighborhood(ID: 0, cityID: place.cityID.cityID, name: place.neighborhood, clicked: 1)
+            if place.neighborhood == "Unknown" { placeNeighborhood = nil }
             if let nei = try? await GetPlaceNeighborhoodRequest(neighborhood: place.neighborhood, cityID: place.cityID.cityID).send() {
                 placeNeighborhood = nei[0]
             }
@@ -469,13 +456,16 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
 
     override func numberOfSections(in collectionView: UICollectionView) -> Int {
         // #warning Incomplete implementation, return the number of sections
-        return 8
+        switch isConciergePlace {
+        case true: return 9
+        case false: return 8
+        }
     }
 
 
     override func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        switch section {
-        case 7:
+        switch (section, isConciergePlace) {
+        case (8, true), (7, false):
             switch segment {
             case 1:
                 let role = currentUser.role
@@ -486,12 +476,17 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                 }
             default:
                 guard placePics.isEmpty == false else {return 0}
-                guard isFSQPlace == false && isGooglePlace == false else {return placePics.keys.count}
+                guard isFSQPlace == false else {return placePics.keys.count}
                 return (placePics.keys.count + 1)
             }
-        case 6:
-            return 2
-        case 3:
+        case (7, true), (6, false):
+            switch isConciergePlace {
+            case true:
+                return 2
+            case false:
+                return 1
+            }
+        case (3, _):
             return tags.count + 1
         default:
             return 1
@@ -500,8 +495,8 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
 
     override func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         
-        switch (indexPath.item, indexPath.section) {
-        case (0, 0):
+        switch (indexPath.item, indexPath.section, isConciergePlace) {
+        case (0, 0, _):
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PlacePic", for: indexPath) as! PlacePicCollectionViewCell
             
             cell.placePic.image = placePic
@@ -521,7 +516,7 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
             cell.addGestureRecognizer(doubleTap)
             
             return cell
-        case (0, 1):
+        case (0, 1, _):
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PlaceName", for: indexPath) as! PlaceNameCollectionViewCell
             cell.placeNameLabel.text = place.name
             cell.setupMoreOptionsButton()
@@ -529,8 +524,20 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
             
             cell.delegate = self
             
+            if let place = place as? ConciergePlace {
+                if let number = place.phoneNumber {
+                    cell.phNumber = number
+                } else { cell.phNumber = nil }
+                if let url = place.menuURL {
+                    cell.menuURL = url
+                } else { cell.menuURL = nil }
+            } else {
+                cell.phNumber = nil
+                cell.menuURL = nil
+            }
+            
             return cell
-        case (0, 2):
+        case (0, 2, _):
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PlaceWebsiteAndDirections", for: indexPath) as! PlaceWebsiteAndDirectionsCollectionViewCell
             if place.website == "https://google.com" {
                 cell.websiteButton.isEnabled = false
@@ -540,44 +547,80 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
             
             cell.placeCategoryLabel.text = "\(place.genre)"
             cell.placeNeighborhoodLabel.text = "\(place.neighborhood)"
+            if let _ = cityID, let _ = placeTypeID, let _ = placeCategory {
+                // cityID is not nil – make labels bold
+                cell.placeCategoryLabel.font = UIFont.boldSystemFont(ofSize: cell.placeCategoryLabel.font.pointSize)
+            } else {
+                // cityID is nil – make labels regular
+                cell.placeCategoryLabel.font = UIFont.systemFont(ofSize: cell.placeCategoryLabel.font.pointSize)
+            }
+            if let _ = cityID, let _ = placeTypeID, let _ = placeNeighborhood {
+                // cityID is not nil – make labels bold
+                cell.placeNeighborhoodLabel.font = UIFont.boldSystemFont(ofSize: cell.placeNeighborhoodLabel.font.pointSize)
+            } else {
+                // cityID is nil – make labels regular
+                cell.placeNeighborhoodLabel.font = UIFont.systemFont(ofSize: cell.placeNeighborhoodLabel.font.pointSize)
+            }
             
             cell.delegate = self
             return cell
-        case (tags.count, 3):
+        case (tags.count, 3, _):
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "AddTag", for: indexPath) as! AddTagCollectionViewCell
             cell.delegate = self
             return cell
-        case (_, 3):
+        case (_, 3, _):
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "Tag", for: indexPath) as! PlaceTagCollectionViewCell
             cell.tagName.text = tags[indexPath.item].tagName
             cell.tagNum.text = "\(tags[indexPath.item].count)"
+            cell.placeTag = tags[indexPath.item]
             switch indexPath.item {
             case 1:
                 cell.backgroundColor = BACKGROUND2
             case 2:
                 cell.backgroundColor = BACKGROUND3
+            case 3:
+                cell.backgroundColor = BACKGROUND4
             case 0:
                 cell.backgroundColor = BACKGROUND1
             default: break
             }
-            cell.style()
+            
+            cell.delegate = self
+            
             return cell
-        case (0, 4):
+        case (0, 4, true):
+            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PlaceAuthorAndLoves", for: indexPath) as! PlaceAuthorAndLovesCollectionViewCell
+            
+            if let place = place as? ConciergePlace, let name = place.authorName {
+                cell.usernameLabel.text = name
+                cell.fetchUserProfPicImage(profPicURL: place.authorProfPic)
+            } else {
+                cell.usernameLabel.text = ""
+            }
+            
+            cell.lovesLabel.text = "\(place.communityVotes) people loved"
+            
+            cell.delegate = self
+            
+            return cell
+        case (0, 5, true), (0, 4, false):
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PlaceDescription", for: indexPath) as! PlaceDescriptionCollectionViewCell
             cell.placeDescription.text = place.descr
             descrHeight = Double(cell.bounds.height)
 
             return cell
-        case (0, 5):
+        case (0, 6, true), (0, 5, false):
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PinPlaceMapView", for: indexPath) as! PinPlaceMapViewCollectionViewCell
                 
             // Configure the MapView in the cell
             cell.configureMapView(with: place)
             
             return cell
-        case (_, 6):
+        case (_, 7, true), (_, 6, false):
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PlaceDetailSegment", for: indexPath) as! PlaceSegmentControllerCollectionViewCell
             cell.delegate = self
+            
+            
             if indexPath.item == 0 {
                 cell.iconImg.image = UIImage(systemName: "photo")
                 cell.segmentName.text = "Photos (\(placePics.count))"
@@ -662,8 +705,8 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
         
         let layout = UICollectionViewCompositionalLayout { [unowned self] (sectionIndex, layoutEnvironment) -> NSCollectionLayoutSection? in
             
-            switch sectionIndex {
-            case 0:
+            switch (sectionIndex, isConciergePlace) {
+            case (0, _):
                 
                 let size = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(picHeight))
                 let item = NSCollectionLayoutItem(layoutSize: size)
@@ -673,7 +716,7 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                 section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 10, trailing: 0)
         
                 return section
-            case 1, 2:
+            case (1, _), (2, _), (4, true):
                 let size = NSCollectionLayoutSize(widthDimension:.fractionalWidth(1), heightDimension: .estimated(33))
                 let item = NSCollectionLayoutItem(layoutSize: size)
                 
@@ -682,7 +725,7 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                 section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 10, trailing: 0)
                 
                 return section
-            case 3:
+            case (3, _):
                 let size = NSCollectionLayoutSize(widthDimension: NSCollectionLayoutDimension.estimated(33), heightDimension: NSCollectionLayoutDimension.absolute(35))
                 let item = NSCollectionLayoutItem(layoutSize: size)
                 item.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10)
@@ -695,7 +738,7 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                 section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 20, bottom: 10, trailing: 20)
                  
                 return section
-            case 4:
+            case (5, true), (4, false):
                 let size = NSCollectionLayoutSize(widthDimension:.fractionalWidth(1), heightDimension: .estimated(descrHeight))
                 let item = NSCollectionLayoutItem(layoutSize: size)
                 
@@ -704,7 +747,7 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                 section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 15, trailing: 0)
                 
                 return section
-            case 5:
+            case (6, true), (5, false):
                 let size = NSCollectionLayoutSize(
                     widthDimension: NSCollectionLayoutDimension.fractionalWidth(1),
                     heightDimension: NSCollectionLayoutDimension.absolute(200)
@@ -718,8 +761,10 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                  
                 return section
                 
-            case 6:
-                let size = NSCollectionLayoutSize(widthDimension:.fractionalWidth(0.5), heightDimension: .absolute(40))
+            case (7, true), (6, false):
+                var thisWidth = 1.0
+                if isConciergePlace { thisWidth = 0.5 }
+                let size = NSCollectionLayoutSize(widthDimension:.fractionalWidth(thisWidth), heightDimension: .absolute(40))
                 let item = NSCollectionLayoutItem(layoutSize: size)
                 
                 let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .absolute(40))
@@ -759,7 +804,6 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                     return section
                 }
             }
-            
         }
         
         return layout
@@ -769,7 +813,7 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
         //find which segment we're in
         //Comments segment will only allow user to click the first cell 'AddComment'
         //Photos cell will allow user to either scroll through the fetched image OR use an alert controller to allow a new image(s) to be uploaded
-        if indexPath.section == 7 {
+        if (indexPath.section == 8 && isConciergePlace) || (indexPath.section == 7 && !(isConciergePlace)) {
             switch segment {
             case 1:
                 if indexPath.row == 0 {
@@ -783,22 +827,14 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                     displayImageUploadChoices()
                 }
             }
-        } else if indexPath.section == 6 {
+        } else if (indexPath.section == 7 && isConciergePlace) || (indexPath.section == 6 && !(isConciergePlace)){
             if segment == 0 {
                 segment = 1
             } else {
                 segment = 0
             }
             collectionView.reloadData()
-        } else if indexPath.section == 3 {
-            print("Hi")
-            guard indexPath.item != tags.count else { return }
-            print("Hello")
-            let tag = tags[indexPath.item]
-            selectedTag = tag
-            tagSelected = true
-            performSegue(withIdentifier: "UnwindFromFiltersToACity", sender: nil)
-        } else if indexPath.section == 5 {
+        } else if (indexPath.section == 6 && isConciergePlace) || (indexPath.section == 5 && !(isConciergePlace)) {
             OpenMapDirections.present(in: self, sourceView: self.view, address: place.address, placeName: place.name)
         }
     }
@@ -824,6 +860,7 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
             let reviewVC = segue.destination as! AddCommentCollectionViewController
             reviewVC.place = place
             reviewVC.placeSource = placeSource
+            reviewVC.delegate = self
         } else if let dest = segue.destination as? ACityCollectionViewController {
             guard segue.identifier == "UnwindFromFiltersToACity" else {return}
             if catSelected {
@@ -834,6 +871,7 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                 
                 dest.filters = [.categories]
                 dest.model.selectedCategory = placeCategory
+                catSelected = false
             } else if neiSelected {
                 dest.model.selectedCategory = nil
                 dest.model.selectedTags = nil
@@ -842,6 +880,7 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                 
                 dest.filters = [.neighborhoods]
                 dest.model.selectedNeighborhood = placeNeighborhood
+                neiSelected = false
             } else if tagSelected {
                 dest.model.selectedCategory = nil
                 dest.model.selectedNeighborhood = nil
@@ -852,7 +891,11 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
                     dest.model.selectedTagIndexes = Set<Int>()
                     dest.model.selectedTagPlaceIDs = nil
                 }
+                tagSelected = false
             }
+            
+            dest.unwindCityID = cityID
+            dest.unwindPlaceTypeID = placeTypeID
         }
         
         //if AddToItinerary we need to pass the current Place, the cityID, and the type
@@ -865,15 +908,43 @@ class PlaceDetailCollectionViewController: UICollectionViewController {
             
             tableController.type = type
         }
+        
+        
+        if segue.identifier == "UserActivity" {
+            let cvc = segue.destination as! UserActivityCollectionViewController
+            guard let place = place as? ConciergePlace else { return }
+            cvc.userID = place.authorId ?? 0
+            cvc.userName = place.authorName ?? ""
+        }
+        
+        if segue.identifier == "CommunityLoves" {
+            let cvc = segue.destination as! CommunityLovesCollectionViewController
+            cvc.placeID = place.id
+        }
     }
     
-    @IBAction func unwindToPlaceDetail(segue: UIStoryboardSegue) {
-        print("Hello")
-    }
-
+    @IBAction func unwindToPlaceDetail(segue: UIStoryboardSegue) { }
 }
 
 extension PlaceDetailCollectionViewController: PlaceNameCollectionViewCellDelegate {
+    func call() {
+        if let place = place as? ConciergePlace, let number = place.phoneNumber {
+            if isValidPhoneNumber(number) {
+                callPhoneNumber(number)
+            } else {
+                // print("Invalid phone number format.")
+            }
+        }
+    }
+    
+    func seeMenu() {
+        if let place = place as? ConciergePlace, let websiteURL = place.menuURL {
+            if let url = URL(string: websiteURL) {
+                presentWebsite(url: url)
+            }
+        }
+    }
+    
     func addToItinerary() {
         self.performSegue(withIdentifier: "AddToItinerary", sender: nil)
     }
@@ -882,12 +953,13 @@ extension PlaceDetailCollectionViewController: PlaceNameCollectionViewCellDelega
     }
 }
 
-extension PlaceDetailCollectionViewController: PlaceWebsiteAndDirectionsCollectionViewCellDelegate {
+extension PlaceDetailCollectionViewController: PlaceWebsiteAndDirectionsCollectionViewCellDelegate, PlaceTagCollectionViewCellDelegate {
     func presentWebsite(url: URL) {
         let safariViewController = SFSafariViewController(url: url)
         present(safariViewController, animated: true, completion: nil)
     }
     func categoryPressed() {
+        guard let _ = cityID else { return }
         catSelected = true
         if placeCategory == nil {
             placeCategory = Genre(ID: 0, name: place.genre, placeTypeID: place.placeTypeID ?? 0, clicked: 1, fsqCategoryCode: 0)
@@ -895,11 +967,33 @@ extension PlaceDetailCollectionViewController: PlaceWebsiteAndDirectionsCollecti
         performSegue(withIdentifier: "UnwindFromFiltersToACity", sender: nil)
     }
     func neighborhoodPressed() {
+        guard let _ = cityID else { return }
         neiSelected = true
-        if placeNeighborhood == nil {
+        if placeNeighborhood == nil && place.neighborhood != "Unknown" {
             placeNeighborhood = Neighborhood(ID: 0, cityID: place.cityID.cityID, name: place.neighborhood, clicked: 1)
         }
         performSegue(withIdentifier: "UnwindFromFiltersToACity", sender: nil)
+    }
+    func placeTagCellDidTapTag(placeTag: PlaceTag?) {
+        tagSelected = true
+        selectedTag = placeTag
+        performSegue(withIdentifier: "UnwindFromFiltersToACity", sender: nil)
+    }
+}
+
+extension PlaceDetailCollectionViewController {
+    func isValidPhoneNumber(_ number: String) -> Bool {
+        let phoneRegex = #"^\+\d{1}-\d{3}-\d{3}-\d{4}$"#
+        let predicate = NSPredicate(format: "SELF MATCHES %@", phoneRegex)
+        return predicate.evaluate(with: number)
+    }
+    func callPhoneNumber(_ number: String) {
+        let cleanedNumber = number.replacingOccurrences(of: "-", with: "") // Remove dashes
+        if let phoneURL = URL(string: "tel://\(cleanedNumber)"), UIApplication.shared.canOpenURL(phoneURL) {
+            UIApplication.shared.open(phoneURL, options: [:], completionHandler: nil)
+        } else {
+            // print("Invalid phone number or device does not support calling.")
+        }
     }
 }
 
@@ -908,7 +1002,7 @@ extension PlaceDetailCollectionViewController: PlaceSegmentControllerCollectionV
         self.segment = segment
         let descrCell = self.collectionView.cellForItem(at: IndexPath(item: 0, section: 3))
         descrHeight = Double(descrCell?.bounds.height ?? 0.0)
-        collectionView.reloadSections(IndexSet(integer: 5))
+        collectionView.reloadSections(IndexSet(integer: 6))
         collectionView.setCollectionViewLayout(generateLayout(), animated: true)
     }
 }
@@ -934,7 +1028,7 @@ extension PlaceDetailCollectionViewController: CommentCollectionViewCellDelegate
                         comments[commentIndex].communityScore += 1
                         collectionView.reloadData()
                     } else {
-                        print(result)
+                        // print(result)
                     }
                 }
             }
@@ -962,7 +1056,7 @@ extension PlaceDetailCollectionViewController: CommentCollectionViewCellDelegate
                         comments[commentIndex].communityScore -= 1
                         collectionView.reloadData()
                     } else {
-                        print(result)
+                        // print(result)
                     }
                 }
             }
@@ -1032,7 +1126,7 @@ extension PlaceDetailCollectionViewController: UIImagePickerControllerDelegate &
                 self.uploadedPics.append(image)
             }
         }
-        let coverPhotoFileName = "\(place.name)\(place.neighborhood)"
+        let coverPhotoFileName = "\(place.id)"
         group.notify(queue: .main) {
             self.uploadPics(restaurantID: String(self.place.id), path: coverPhotoFileName)
         }
@@ -1062,24 +1156,24 @@ extension PlaceDetailCollectionViewController: UIImagePickerControllerDelegate &
             var additionalPhoto: AdditionalPhoto?
             var fileName: String = ""
             var imageURL: String = ""
-            let params = ["name": "AustinMcL","id": "12345","type":"restaurants"]
+            let params = ["name": "AustinMcL","id": "12345","type":"places"]
             
-            fileName = "\(path)\(n).jpeg"
-            imageURL = "/Concierge/photos/restaurants/\(path)\(n).jpeg"
+            fileName = "\(path)_\(n).jpeg"
+            imageURL = "/places/\(path)_\(n).jpeg"
             additionalPhoto = AdditionalPhoto(placeID: Int(restaurantID) ?? 0, path: imageURL, photoIndex: n)
             
             group.enter()
             let imageUpload = ImageUpload(image: pic, imageURL: imageURL, key: "restaurantPic", params: params, fileName: fileName)!
+            
             newImageRequestTask = Task {
-                let newImage = try? await NewImageRequest(imageUpload: imageUpload).send()
+                let _ = try? await NewImageRequest(imageUpload: imageUpload).send()
                 newImageRequestTask = nil
                 group.leave()
             }
             group.enter()
             if let additionalPhoto = additionalPhoto {
                 additionalImageRequestTask = Task {
-                    let addPhotoRequest = try? await AdditionalPhotoRequest(additionalPhoto: additionalPhoto).send()
-                    print(addPhotoRequest)
+                    let _ = try? await AdditionalPhotoRequest(additionalPhoto: additionalPhoto).send()
                     group.leave()
                     additionalImageRequestTask = nil
                 }
@@ -1100,17 +1194,31 @@ extension PlaceDetailCollectionViewController: LovePlaceDelegate {
 }
 
 extension PlaceDetailCollectionViewController: PicGetterDelegate {
-    func updatePic(image: UIImage) {}
+    func updatePic(image: UIImage?, placeID: Int?) {}
     
     func updatePics(images: [UIImage]) {
         var i = 1
+        guard images.isEmpty == false else {return}
         for pic in images {
             placePics[i] = pic
             i += 1
         }
         DispatchQueue.main.async {
+            if self.placePic == UIImage(named: "default.png") {
+                self.placePic = images[0]
+                if self.isConciergePlace {
+                    self.collectionView.reloadSections([0, 8, 7])
+                } else {
+                    self.collectionView.reloadSections([0, 6, 7])
+                }
+            }
             self.picHeight = self.getPicHeight()
-            self.collectionView.reloadData()
+            
+            if self.isConciergePlace {
+                self.collectionView.reloadSections([8, 7])
+            } else {
+                self.collectionView.reloadSections([6, 7])
+            }
         }
     }
     
@@ -1118,7 +1226,7 @@ extension PlaceDetailCollectionViewController: PicGetterDelegate {
         DispatchQueue.main.async {
             guard let i = i else {return}
             self.placePics[i+1] = image
-            self.collectionView.reloadSections(IndexSet(integer: 7))
+            self.collectionView.reloadSections([6, 7])
             if i == 0 {
                 self.picHeight = self.getPicHeight()
                 self.collectionView.reloadSections(IndexSet(integer: 0))
@@ -1143,7 +1251,7 @@ extension PlaceDetailCollectionViewController: AddTagCollectionViewCellDelegate 
     
     func presentTagInputPopup() {
         // Create the alert controller
-        let alertController = UIAlertController(title: "Add Tag", message: "Enter a tag for this place.", preferredStyle: .alert)
+        let alertController = UIAlertController(title: "Add Tag", message: "25 characters or less", preferredStyle: .alert)
         
         // Add a text field to the alert
         alertController.addTextField { textField in
@@ -1184,7 +1292,72 @@ extension PlaceDetailCollectionViewController: AddTagCollectionViewCellDelegate 
     }
     
     func handleTagSubmission(tag: String) {
-        let addTag = AddTag(tagID: 0, tagName: tag, userID: currentUser.id, placeID: place.id, cityID: place.cityID.cityID)
+        let addTag = AddTag(tagID: 0, tagName: tag, userID: currentUser.id, placeID: place.id, cityID: place.cityID.cityID, placeTypeID: place.placeTypeID ?? 0)
+        tagFunctions.delegate = self
         tagFunctions.addTag(addTag: addTag)
+    }
+}
+
+extension PlaceDetailCollectionViewController: AddCommentDelegate, AddTagDelegate {
+    func didAddComment() {
+        getComments()
+        getTags()
+    }
+    func didAddTag() {
+        DispatchQueue.main.async {
+            self.getTags()
+        }
+    }
+}
+
+extension PlaceDetailCollectionViewController: PlaceAuthorAndLovesCellDelegate {
+    func updateProfPicClicked() {
+        performSegue(withIdentifier: "UserActivity", sender: nil)
+    }
+    
+    func authorLabelClicked() {
+        performSegue(withIdentifier: "UserActivity", sender: nil)        
+    }
+    
+    func communityLovesClicked() {
+        performSegue(withIdentifier: "CommunityLoves", sender: nil)
+    }
+}
+
+extension PlaceDetailCollectionViewController {
+    func showPopup(message: String = "Please sign in to Love places! ❤️") {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first(where: { $0.isKeyWindow }) else { return }
+        
+        let popupLabel = UILabel()
+        popupLabel.text = message
+        popupLabel.textAlignment = .center
+        popupLabel.font = UIFont.systemFont(ofSize: 16, weight: .medium)
+        popupLabel.textColor = .white
+        popupLabel.backgroundColor = UIColor.blue.withAlphaComponent(0.5)
+        popupLabel.layer.cornerRadius = 10
+        popupLabel.clipsToBounds = true
+        popupLabel.alpha = 0.0
+        
+        let labelHeight: CGFloat = 50
+        let labelWidth: CGFloat = window.frame.width * 0.8
+        popupLabel.frame = CGRect(x: (window.frame.width - labelWidth) / 2,
+                                  y: (window.frame.height - labelHeight) / 2,
+                                  width: labelWidth,
+                                  height: labelHeight)
+        
+        window.addSubview(popupLabel)
+        
+        // Animate fade in
+        UIView.animate(withDuration: 0.3, animations: {
+            popupLabel.alpha = 1.0
+        }) { _ in
+            // Fade out after delay
+            UIView.animate(withDuration: 0.3, delay: 1.5, options: .curveEaseInOut, animations: {
+                popupLabel.alpha = 0.0
+            }) { _ in
+                popupLabel.removeFromSuperview()
+            }
+        }
     }
 }

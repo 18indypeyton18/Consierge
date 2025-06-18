@@ -24,11 +24,21 @@ class PlaceDetailCollectionViewCell: UICollectionViewCell {
     @IBOutlet var tag3Label: UILabel!
     @IBOutlet var tag4Label: UILabel!
     
-    
     var place: Place?
     
     var placeTypeID: Int?
     var cityID: Int?
+    
+    var fetchedPics = [String:UIImage?]()
+    
+    var imageRequestTask: Task<Void,Never>? = nil
+    var tagsRequestTask: Task<Void,Never>? = nil
+    deinit {
+        imageRequestTask?.cancel()
+        tagsRequestTask?.cancel()
+    }
+    
+    var tagsDict: [String:[PlaceTag]] = [:]
     
     weak var delegate: PlaceDetailCollectionViewCellDelegate?
     let lovePlaceFunctions = LovePlaceFunctions()
@@ -44,6 +54,10 @@ class PlaceDetailCollectionViewCell: UICollectionViewCell {
         picGetter.delegate = self
         self.addInteraction(UIContextMenuInteraction(delegate: self as UIContextMenuInteractionDelegate))
         self.placePic.addGestureRecognizer(lpgr)
+        tag1Label.isHidden = true
+        tag2Label.isHidden = true
+        tag3Label.isHidden = true
+        tag4Label.isHidden = true
     }
     
     override func layoutSubviews() {
@@ -55,9 +69,14 @@ class PlaceDetailCollectionViewCell: UICollectionViewCell {
         contentView.layer.borderColor = UIColor.clear.cgColor
     }
     
-    var imageRequestTask: Task<Void,Never>? = nil
-    deinit {
-        imageRequestTask?.cancel()
+    func getPlaceID() -> String {
+        guard let place = place else { return "" }
+        switch place is ConciergePlace {
+        case true:
+            return String(place.id)
+        case false:
+            return place.fsqID ?? ""
+        }
     }
 }
 
@@ -87,12 +106,13 @@ extension PlaceDetailCollectionViewCell: UIContextMenuInteractionDelegate {
                 
                 var placeTypeName = "Place"
                 if let place = place as? ConciergePlace {
-                    placeTypeName = allPlaceTypes[place.placeTypeID ?? 0]?.name ?? "Place"
+                    placeTypeName = allPlaceTypes[place.placeTypeID ?? 0]?.singularName ?? "Place"
                 }
                 
                 let placeLoved = userLovedPlaces.contains { thisPlace in
                     "\(thisPlace.name)\(thisPlace.id)\(thisPlace.fsqID ?? "")" == "\(place.name)\(place.id)\(place.fsqID ?? "")"
                 }
+                
                 if !placeLoved {
                     loveAction =
                     UIAction(title: NSLocalizedString("Love \(placeTypeName)", comment: ""),
@@ -101,7 +121,7 @@ extension PlaceDetailCollectionViewCell: UIContextMenuInteractionDelegate {
                             self.lovePlaceFunctions.lovePlace(place: place, placeSource: .concierge)
                         } else if let place = place as? FSQPlace {
                             self.lovePlaceFunctions.loveFSQPlace(place: place, placeSource: .fsq, placeTypeID: self.placeTypeID ?? 0, cityID: self.cityID ?? 0)
-                        }
+                        } 
                         self.delegate?.placeLoved(place: place)
                     }
                 } else {
@@ -138,14 +158,18 @@ extension PlaceDetailCollectionViewCell: PicGetterDelegate {
     
     func updatePics(image: UIImage, i: Int?) {}
     
-    func updatePic(image: UIImage) {
+    func updatePic(image: UIImage?, placeID: Int?) {
+        
+        let placeIDStr = String(placeID ?? place?.id ?? 0)
+        fetchedPics[placeIDStr] = image
+        
         DispatchQueue.main.async {
             self.activityIndicator.stopAnimating()
             self.activityIndicator.isHidden = true
+            
+            guard placeID == nil || placeID == self.place?.id else { return }
                                     
-            self.placePic.layer.cornerRadius = 8.0
-            self.placePic.layer.borderWidth = 1.0
-            self.placePic.layer.borderColor = UIColor.systemGray5.cgColor
+            self.placePic.layer.cornerRadius = 10.0
             self.placePic.layer.masksToBounds = true
             
             self.placePic.image = image
@@ -156,7 +180,7 @@ extension PlaceDetailCollectionViewCell: PicGetterDelegate {
             // Create shadow for the entire cell
             self.layer.cornerRadius = 10.0 // Optional: Add corner radius for rounded corners
             self.layer.shadowColor = UIColor.darkGray.cgColor
-            self.layer.shadowOpacity = 0.1
+            self.layer.shadowOpacity = 0.05
             self.layer.shadowOffset = CGSize(width: 0, height: 2)
             self.layer.shadowRadius = 4.0
             self.layer.masksToBounds = false
@@ -203,13 +227,80 @@ extension PlaceDetailCollectionViewCell {
     //Fetch Image from the server based on imageURL
     
     func fetchImage(imageURL: String) {
+        let placeID = getPlaceID()
+        if let img = fetchedPics[placeID] {
+            placePic.image = img
+            return
+        }
+        
+        placePic.image = UIImage(named: "default.png")
+        activityIndicator.isHidden = false
+        activityIndicator.startAnimating()
         if let place = place as? ConciergePlace {
             picGetter.getConciergeImage(place: place)
         } else if let place = place as? FSQPlace {
             picGetter.getFSQImage(imageURL: place.imageURL)
-        } else if let place = place as? GooglePlace {
-            picGetter.getGoogleImage(photo_reference: place.imageURL)
         }
+    }
+}
+
+extension PlaceDetailCollectionViewCell {
+    
+    func getTags() {
+        
+        guard let place = place else { return }
+        var thisID = place.fsqID
+        if place is ConciergePlace {
+            thisID = String(place.id)
+        }
+        if let thisID = thisID, let placeTags = tagsDict[thisID], placeTags.isEmpty == false {
+            setTagLabels()
+        } else {
+            tagsRequestTask = Task {
+                if let tags = try? await PlaceTagsRequest(placeID: place.id).send() {
+                    let placeTags = tags.sorted(by: { lhs, rhs in
+                        lhs.count > rhs.count
+                    })
+                    if let thisID = thisID { self.tagsDict[thisID] = placeTags }
+                }
+                setTagLabels()
+                tagsRequestTask = nil
+            }
+        }
+    }
+    
+    func setTagLabels() {
+        
+        guard let place = place else { return }
+        var thisID = place.fsqID
+        if place is ConciergePlace {
+            thisID = String(place.id)
+        }
+        
+        var placeTags = [PlaceTag]()
+        if let thisID = thisID, let theseTags = tagsDict[thisID] {
+            placeTags = theseTags
+        }
+        
+        if placeTags.count > 0 {
+            tag1Label.text = placeTags[0].tagName
+            tag1Label.isHidden = false
+        } else { tag1Label.isHidden = true }
+        
+        if placeTags.count > 1 {
+            tag3Label.text = placeTags[1].tagName
+            tag3Label.isHidden = false
+        } else { tag3Label.isHidden = true }
+        
+        if placeTags.count > 2 {
+            tag2Label.text = placeTags[2].tagName
+            tag2Label.isHidden = false
+        } else { tag2Label.isHidden = true }
+        
+        if placeTags.count > 3 {
+            tag4Label.text = placeTags[3].tagName
+            tag4Label.isHidden = false
+        } else { tag4Label.isHidden = true }
     }
 }
 

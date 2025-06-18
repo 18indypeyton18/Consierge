@@ -15,6 +15,7 @@ struct Comment: Codable {
     var fsqID: String?
     var placeType: String
     var communityScore: Int
+    var status: String
     
     var commentDateDate: Date? {
         
@@ -33,4 +34,15 @@ struct CommentUpvote: Codable {
     let commentID: Int
     let type: String
     let value: String
+}
+
+struct CommentStatus: Codable {
+    let commentId: Int
+    let status: String
+}
+
+
+struct PlaceStatus: Codable {
+    let placeId: Int
+    let status: String
 }

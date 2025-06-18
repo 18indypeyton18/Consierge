@@ -22,6 +22,8 @@ class PlaceBoxCollectionViewCell: UICollectionViewCell {
     let lovePlaceFunctions = LovePlaceFunctions()
     let picGetter = PicGetter()
     
+    var fetchedPics = [String:UIImage?]()
+    
     override func awakeFromNib() {
         //setup long press gesture recognizer - currently contains 1 context menu item (<3 restaurant)
         let lpgr : UILongPressGestureRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress))
@@ -49,6 +51,16 @@ class PlaceBoxCollectionViewCell: UICollectionViewCell {
     
     @IBAction func openDirections(_ sender: Any) {
         self.delegate?.presentDirections(address: self.place?.address ?? "", placeName: self.place?.name ?? "")
+    }
+    
+    func getPlaceID() -> String {
+        guard let place = place else { return "" }
+        switch place is ConciergePlace {
+        case true:
+            return String(place.id)
+        case false:
+            return place.fsqID ?? ""
+        }
     }
 }
 
@@ -78,12 +90,13 @@ extension PlaceBoxCollectionViewCell: UIContextMenuInteractionDelegate {
                 
                 var placeTypeName = "Place"
                 if let place = place as? ConciergePlace {
-                    placeTypeName = allPlaceTypes[place.placeTypeID ?? 0]?.name ?? "Place"
+                    placeTypeName = allPlaceTypes[place.placeTypeID ?? 0]?.singularName ?? "Place"
                 }
                 
                 let placeLoved = userLovedPlaces.contains { thisPlace in
                     "\(thisPlace.name)\(thisPlace.id)\(thisPlace.fsqID ?? "")" == "\(place.name)\(place.id)\(place.fsqID ?? "")"
                 }
+                
                 if !placeLoved {
                     loveAction =
                     UIAction(title: NSLocalizedString("Love \(placeTypeName)", comment: ""),
@@ -97,8 +110,13 @@ extension PlaceBoxCollectionViewCell: UIContextMenuInteractionDelegate {
                     }
                 } else {
                     loveAction = UIAction(title: NSLocalizedString("Unlove \(placeTypeName)", comment: ""), image: UIImage(systemName: "heart.fill")) { action in
-                        self.lovePlaceFunctions.lovePlace(place: self.place, placeSource: .concierge)
-                        self.delegate?.placeLoved(place: place)
+                        if let place = place as? ConciergePlace {
+                            self.lovePlaceFunctions.lovePlace(place: self.place, placeSource: .concierge)
+                            self.delegate?.placeLoved(place: place)
+                        } else if let place = place as? FSQPlace {
+                            self.lovePlaceFunctions.loveFSQPlace(place: place, placeSource: .fsq, placeTypeID: self.placeTypeID ?? 0, cityID: self.cityID ?? 0)
+                            self.delegate?.placeLoved(place: place)
+                        }
                     }
                 }
                 
@@ -125,18 +143,17 @@ extension PlaceBoxCollectionViewCell: UIContextMenuInteractionDelegate {
 }
 
 extension PlaceBoxCollectionViewCell: PicGetterDelegate {
-    func updatePics(images: [UIImage]) {}
-    
-    func updatePics(image: UIImage, i: Int?) {}
-    
-    func updatePic(image: UIImage) {
+    func updatePic(image: UIImage?, placeID: Int?) {
+        let placeIDStr = String(placeID ?? place?.id ?? 0)
+        fetchedPics[placeIDStr] = image
+        
         DispatchQueue.main.async {
             self.activityIndicator.stopAnimating()
             self.activityIndicator.isHidden = true
+            
+            guard placeID == nil || placeID == self.place?.id else { return }
                                     
-            self.placePic.layer.cornerRadius = 8.0
-            self.placePic.layer.borderWidth = 1.0
-            self.placePic.layer.borderColor = UIColor.systemGray5.cgColor
+            self.placePic.layer.cornerRadius = 10.0
             self.placePic.layer.masksToBounds = true
             
             self.placePic.image = image
@@ -147,7 +164,7 @@ extension PlaceBoxCollectionViewCell: PicGetterDelegate {
             // Create shadow for the entire cell
             self.layer.cornerRadius = 10.0 // Optional: Add corner radius for rounded corners
             self.layer.shadowColor = UIColor.darkGray.cgColor
-            self.layer.shadowOpacity = 0.1
+            self.layer.shadowOpacity = 0.05
             self.layer.shadowOffset = CGSize(width: 0, height: 2)
             self.layer.shadowRadius = 4.0
             self.layer.masksToBounds = false
@@ -157,6 +174,10 @@ extension PlaceBoxCollectionViewCell: PicGetterDelegate {
             self.layer.borderColor = UIColor.systemGray6.cgColor
         }
     }
+    
+    func updatePics(images: [UIImage]) {}
+    
+    func updatePics(image: UIImage, i: Int?) {}
     
     func returnPic(image: UIImage, i: Int) {
     }
@@ -174,15 +195,22 @@ extension PlaceBoxCollectionViewCell {
 }
 
 extension PlaceBoxCollectionViewCell {
-    //Fetch Image from the server based on imageURL
-    
     func fetchImage(imageURL: String) {
+        let placeID = getPlaceID()
+        if let img = fetchedPics[placeID] {
+            placePic.image = img
+            self.activityIndicator.hidesWhenStopped = true
+            self.activityIndicator.stopAnimating()
+            return
+        }
+        
+        placePic.image = UIImage(named: "default.png")
+        activityIndicator.isHidden = false
+        activityIndicator.startAnimating()
         if let place = place as? ConciergePlace {
             picGetter.getConciergeImage(place: place)
         } else if let place = place as? FSQPlace {
             picGetter.getFSQImage(imageURL: place.imageURL)
-        } else if let place = place as? GooglePlace {
-            picGetter.getGoogleImage(photo_reference: place.imageURL)
         }
     }
 }

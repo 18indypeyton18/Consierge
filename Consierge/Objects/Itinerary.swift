@@ -17,6 +17,7 @@ struct Itinerary: Codable, Hashable, Comparable {
     var name: String
     var cityID: Int?
     var coverImageURL: String?
+    var coverImageSrc: String
     
     var createdDateDate: Date? {
         let dateFormatter = DateFormatter()

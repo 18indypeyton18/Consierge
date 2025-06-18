@@ -84,7 +84,7 @@ class SignUpPasswordViewController: UIViewController, UITextFieldDelegate {
                         //user successfully registered
                         DispatchQueue.main.async {
                             //display message to the user
-                            let myAlert = UIAlertController(title: "Alert", message: "User Registration Successful!", preferredStyle: UIAlertController.Style.alert)
+                            let myAlert = UIAlertController(title: "Success", message: "Account Created!", preferredStyle: UIAlertController.Style.alert)
                             let okAction = UIAlertAction(title: "Okay", style: UIAlertAction.Style.default) { action in
                                 
                                 //segue to Login page
@@ -111,7 +111,6 @@ class SignUpPasswordViewController: UIViewController, UITextFieldDelegate {
                         }
                     }
                 } else {
-                    print(newUser)
                     let myAlert = UIAlertController(title: "Alert", message: "unknown error", preferredStyle: UIAlertController.Style.alert)
                     let okAction = UIAlertAction(title: "Okay", style: UIAlertAction.Style.default)
                     myAlert.addAction(okAction)
