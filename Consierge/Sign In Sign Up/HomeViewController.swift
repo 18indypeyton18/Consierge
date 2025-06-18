@@ -11,7 +11,7 @@ let defaultUser = User(id: 0, firstName: "guest", lastName: "user", email: "Gues
 import UIKit
 import GoogleSignIn
 import AuthenticationServices
-import FBSDKLoginKit
+//import FBSDKLoginKit
 
 class HomeViewController: UIViewController {
     @IBOutlet var consiergeMan: UIImageView!

@@ -6,3 +6,6 @@
 //
 
 import Foundation
+
+
+let apiToken = "***REMOVED***"

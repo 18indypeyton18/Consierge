@@ -13,6 +13,7 @@
 		9E0BE7402B3C5CEF00EE252D /* SignUpEmailAndNameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0BE73F2B3C5CEF00EE252D /* SignUpEmailAndNameViewController.swift */; };
 		9E0BE7422B3C5EA900EE252D /* AddressSuggestionCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0BE7412B3C5EA900EE252D /* AddressSuggestionCollectionViewCell.swift */; };
 		9E0BE7442B3C5F5700EE252D /* SignUpLocationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0BE7432B3C5F5700EE252D /* SignUpLocationViewController.swift */; };
+		9E0CFD632E0332F5009EBD13 /* creds.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0CFD622E0332F5009EBD13 /* creds.swift */; };
 		9E0F09A02D74268F00F309A3 /* UserActivityCollectionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0F099F2D74268F00F309A3 /* UserActivityCollectionViewController.swift */; };
 		9E13590D2B4A0E89009B214B /* SortMethodSelectorCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E13590C2B4A0E88009B214B /* SortMethodSelectorCollectionViewCell.swift */; };
 		9E13590F2B4A0EA1009B214B /* FiltersSelectorCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E13590E2B4A0EA1009B214B /* FiltersSelectorCollectionViewCell.swift */; };
@@ -121,12 +122,12 @@
 		9EEA889A2D751C84008D3CD1 /* CommunityLovesCollectionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EEA88992D751C84008D3CD1 /* CommunityLovesCollectionViewController.swift */; };
 		9EEE42D52D3F490900408258 /* OpenAIAPIRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EEE42D42D3F490900408258 /* OpenAIAPIRequest.swift */; };
 		9EF69B472CB18E9B002D8308 /* MapViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EF69B462CB18E9B002D8308 /* MapViewController.swift */; };
-		D3B4CC35818A22B61D66A529 /* Pods_Consierge.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4529D4D8802ED432F435964C /* Pods_Consierge.framework */; };
+		D95033E0EDE2217F1C313E45 /* Pods_Consierge.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E0552C5B6BD2065E50A058EF /* Pods_Consierge.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		00CBF60430189FA1EEDE7CC0 /* Pods-Consierge.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Consierge.debug.xcconfig"; path = "Target Support Files/Pods-Consierge/Pods-Consierge.debug.xcconfig"; sourceTree = "<group>"; };
-		4529D4D8802ED432F435964C /* Pods_Consierge.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Consierge.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		605B908608F7A1C84080871E /* Pods-Consierge.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Consierge.release.xcconfig"; path = "Target Support Files/Pods-Consierge/Pods-Consierge.release.xcconfig"; sourceTree = "<group>"; };
+		7BE9C81B670E5303EBFAAFC1 /* Pods-Consierge.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Consierge.debug.xcconfig"; path = "Target Support Files/Pods-Consierge/Pods-Consierge.debug.xcconfig"; sourceTree = "<group>"; };
 		9E0B34662C9E5A4900B90D04 /* ApplePlaceViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePlaceViewController.swift; sourceTree = "<group>"; };
 		9E0B34682C9F113600B90D04 /* AddTag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTag.swift; sourceTree = "<group>"; };
 		9E0BE73C2B3B8ABA00EE252D /* Consierge.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Consierge.entitlements; sourceTree = "<group>"; };
@@ -134,6 +135,7 @@
 		9E0BE73F2B3C5CEF00EE252D /* SignUpEmailAndNameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpEmailAndNameViewController.swift; sourceTree = "<group>"; };
 		9E0BE7412B3C5EA900EE252D /* AddressSuggestionCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressSuggestionCollectionViewCell.swift; sourceTree = "<group>"; };
 		9E0BE7432B3C5F5700EE252D /* SignUpLocationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpLocationViewController.swift; sourceTree = "<group>"; };
+		9E0CFD622E0332F5009EBD13 /* creds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = creds.swift; sourceTree = "<group>"; };
 		9E0F099F2D74268F00F309A3 /* UserActivityCollectionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserActivityCollectionViewController.swift; sourceTree = "<group>"; };
 		9E13590C2B4A0E88009B214B /* SortMethodSelectorCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortMethodSelectorCollectionViewCell.swift; sourceTree = "<group>"; };
 		9E13590E2B4A0EA1009B214B /* FiltersSelectorCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FiltersSelectorCollectionViewCell.swift; sourceTree = "<group>"; };
@@ -244,7 +246,7 @@
 		9EEA88992D751C84008D3CD1 /* CommunityLovesCollectionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityLovesCollectionViewController.swift; sourceTree = "<group>"; };
 		9EEE42D42D3F490900408258 /* OpenAIAPIRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIAPIRequest.swift; sourceTree = "<group>"; };
 		9EF69B462CB18E9B002D8308 /* MapViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapViewController.swift; sourceTree = "<group>"; };
-		AAE3A7973606CFFB74F93648 /* Pods-Consierge.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Consierge.release.xcconfig"; path = "Target Support Files/Pods-Consierge/Pods-Consierge.release.xcconfig"; sourceTree = "<group>"; };
+		E0552C5B6BD2065E50A058EF /* Pods_Consierge.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Consierge.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -252,7 +254,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D3B4CC35818A22B61D66A529 /* Pods_Consierge.framework in Frameworks */,
+				D95033E0EDE2217F1C313E45 /* Pods_Consierge.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -262,10 +264,18 @@
 		589F31E9C1808BE595BB309C /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				00CBF60430189FA1EEDE7CC0 /* Pods-Consierge.debug.xcconfig */,
-				AAE3A7973606CFFB74F93648 /* Pods-Consierge.release.xcconfig */,
+				7BE9C81B670E5303EBFAAFC1 /* Pods-Consierge.debug.xcconfig */,
+				605B908608F7A1C84080871E /* Pods-Consierge.release.xcconfig */,
 			);
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		87B61F2F0E0AEB49E5F61D3A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				E0552C5B6BD2065E50A058EF /* Pods_Consierge.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		9E0F09A22D7426F700F309A3 /* User Activity */ = {
@@ -491,7 +501,7 @@
 				9EC0EA7D2B3B414A008792DA /* Consierge */,
 				9EC0EA7C2B3B414A008792DA /* Products */,
 				589F31E9C1808BE595BB309C /* Pods */,
-				F96B0F35B59DD3EB94541FCF /* Frameworks */,
+				87B61F2F0E0AEB49E5F61D3A /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -508,6 +518,7 @@
 			children = (
 				9E0BE73C2B3B8ABA00EE252D /* Consierge.entitlements */,
 				9EC0EA7E2B3B414A008792DA /* AppDelegate.swift */,
+				9E0CFD622E0332F5009EBD13 /* creds.swift */,
 				9EC0EA802B3B414A008792DA /* SceneDelegate.swift */,
 				9EC0EA842B3B414A008792DA /* Main.storyboard */,
 				9EC0EA872B3B414D008792DA /* Assets.xcassets */,
@@ -553,14 +564,6 @@
 			path = "New Place";
 			sourceTree = "<group>";
 		};
-		F96B0F35B59DD3EB94541FCF /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				4529D4D8802ED432F435964C /* Pods_Consierge.framework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -568,11 +571,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 9EC0EA8F2B3B414E008792DA /* Build configuration list for PBXNativeTarget "Consierge" */;
 			buildPhases = (
-				B09D10C902EEDF0884613D93 /* [CP] Check Pods Manifest.lock */,
+				976BD4C699B180441CD45A13 /* [CP] Check Pods Manifest.lock */,
 				9EC0EA772B3B414A008792DA /* Sources */,
 				9EC0EA782B3B414A008792DA /* Frameworks */,
 				9EC0EA792B3B414A008792DA /* Resources */,
-				B1D26597583622AD28EBDC29 /* [CP] Embed Pods Frameworks */,
+				3CF5D3E275D3903211677F8D /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -630,7 +633,24 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		B09D10C902EEDF0884613D93 /* [CP] Check Pods Manifest.lock */ = {
+		3CF5D3E275D3903211677F8D /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Consierge/Pods-Consierge-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Consierge/Pods-Consierge-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Consierge/Pods-Consierge-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		976BD4C699B180441CD45A13 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -650,27 +670,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		B1D26597583622AD28EBDC29 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Consierge/Pods-Consierge-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			inputPaths = (
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Consierge/Pods-Consierge-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Consierge/Pods-Consierge-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -767,6 +766,7 @@
 				9E0BE7402B3C5CEF00EE252D /* SignUpEmailAndNameViewController.swift in Sources */,
 				9E36A78B2B519C0000153708 /* NamedSectionHeaderView.swift in Sources */,
 				9E13590F2B4A0EA1009B214B /* FiltersSelectorCollectionViewCell.swift in Sources */,
+				9E0CFD632E0332F5009EBD13 /* creds.swift in Sources */,
 				9E36A77D2B4F434800153708 /* PlaceBoxCollectionViewCell.swift in Sources */,
 				9E8E1EA22B3E20CE0083FCE1 /* SearchBarCollectionViewCell.swift in Sources */,
 				9E8E1E7E2B3C87F40083FCE1 /* APIRequest.swift in Sources */,
@@ -936,13 +936,14 @@
 		};
 		9EC0EA902B3B414E008792DA /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 00CBF60430189FA1EEDE7CC0 /* Pods-Consierge.debug.xcconfig */;
+			baseConfigurationReference = 7BE9C81B670E5303EBFAAFC1 /* Pods-Consierge.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Consierge/Consierge.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Consierge/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -966,13 +967,14 @@
 		};
 		9EC0EA912B3B414E008792DA /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = AAE3A7973606CFFB74F93648 /* Pods-Consierge.release.xcconfig */;
+			baseConfigurationReference = 605B908608F7A1C84080871E /* Pods-Consierge.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Consierge/Consierge.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Consierge/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

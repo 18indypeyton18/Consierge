@@ -7,12 +7,8 @@
 
 import UIKit
 import GoogleSignIn
-import FBSDKCoreKit
+//import FBSDKCoreKit
 
-//import GooglePlaces
-let apiToken: String = "***REMOVED***"
-let apiToken2: String = "AIzaSyCtsKYOe5RHp72eGTVgNff5TE_CziXs0E4"
-public var googlyKey = "AIzaSyCtsKYOe5RHp72eGTVgNff5TE_CziXs0E4"
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -26,7 +22,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             }
         }
         // Initialize Facebook SDK
-        ApplicationDelegate.shared.application(application, didFinishLaunchingWithOptions: launchOptions)
+//        ApplicationDelegate.shared.application(application, didFinishLaunchingWithOptions: launchOptions)
         
         if UserDefaults.standard.bool(forKey: "loggedIn"), let userEmail = UserDefaults.standard.string(forKey: "email") {
             UserDefaultFunctions().getLoggedInUser(userEmail: userEmail)
@@ -55,7 +51,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return true
         }
         
-        ApplicationDelegate.shared.application(app, open: url, sourceApplication: options[UIApplication.OpenURLOptionsKey.sourceApplication] as? String, annotation: options[UIApplication.OpenURLOptionsKey.annotation])
+//        ApplicationDelegate.shared.application(app, open: url, sourceApplication: options[UIApplication.OpenURLOptionsKey.sourceApplication] as? String, annotation: options[UIApplication.OpenURLOptionsKey.annotation])
         
         // Handle other custom URL types.
         // If not handled by this app, return false.
