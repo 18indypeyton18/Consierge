@@ -50,6 +50,7 @@ sources/*.swift
 .env.*
 creds.swift
 Secrets.swift
+wipe-secrets.txt
 
 # Optional: If you have other config files
 #
